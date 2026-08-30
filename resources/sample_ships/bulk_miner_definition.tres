@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/sample_capital_ship_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/sample_ships/bulk_miner_layout.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/dialogue/combine_industrial_operator.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+ship_id = &"deep_space_bulk_miner"
+display_name = "DEEP-SPACE BULK MINER"
+description = "A slow industrial excavation vessel that cycles between rock faces and its ore exchange."
+ship_layout = ExtResource("2")
+tactical_tint = Color(0.78, 0.68, 0.38, 1)
+faction_id = &"CHARTERED_COMBINE"
+dialogue_profile = ExtResource("3")
+maximum_shield = 25.0
+maximum_hull = 260.0
+default_behavior = 0
+participates_in_combat = false
+tactical_interest_room_types = PackedStringArray("COMMAND", "ENGINEERING", "PROPULSION")

@@ -1,0 +1,33 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/animated_projectile_visual.gd" id="1_script"]
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_rapid"]
+animations = [{
+"frames": [],
+"loop": false,
+"name": &"impact",
+"speed": 16.0
+}, {
+"frames": [],
+"loop": true,
+"name": &"flight",
+"speed": 20.0
+}, {
+"frames": [],
+"loop": false,
+"name": &"spawn",
+"speed": 16.0
+}]
+
+[node name="RapidFireProjectileTemplate" type="Node2D"]
+script = ExtResource("1_script")
+art_scale = 0.75
+randomize_flight_start = true
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+sprite_frames = SubResource("SpriteFrames_rapid")
+animation = &"flight"
+centered = true
+

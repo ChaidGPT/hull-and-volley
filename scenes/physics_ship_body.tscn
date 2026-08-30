@@ -1,0 +1,26 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/physics_ship_body.gd" id="1_body"]
+
+[node name="PhysicsShipBody" type="RigidBody2D"]
+collision_layer = 1
+collision_mask = 31
+gravity_scale = 0.0
+linear_damp_mode = 1
+angular_damp_mode = 1
+continuous_cd = 1
+can_sleep = false
+script = ExtResource("1_body")
+tactical_cell_size = 10.0
+mass_per_hull_cell = 2.0
+hull_bounce = 0.15
+hull_friction = 0.35
+angular_velocity_response = 2.5
+lateral_stabilization_response = 4.0
+forward_drag_response = 0.35
+turn_slide_drag_response = 2.0
+flight_assist_enabled = true
+lateral_velocity_damping = 8.0
+turning_lateral_velocity_damping = 5.0
+idle_forward_velocity_damping = 1.4
+angular_velocity_damping = 7.0

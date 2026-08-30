@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/faction_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+faction_id = &"FREE_SYSTEMS"
+display_name = "FREE SYSTEMS REBELLION"
+short_name = "FREE SYSTEMS"
+description = "Breakaway settlements, resistance cells, smugglers, and mutual-defense flotillas united primarily by opposition to Compact control."
+signal_color = Color(1, 0.27, 0.54, 1)
+insignia_glyph = "✦"
+starting_reputation = 0.0
+diplomatic_relations = {
+&"CHARTERED_COMBINE": -0.25,
+&"UNITED_SYSTEMS": -0.9
+}
+ship_design_language = "Asymmetrical salvaged hulls, mismatched grids, oversized thrusters, missiles, boarding equipment, hidden cargo spaces, and aggressively modified weapons."
+favored_grid_types = PackedStringArray("THRUSTER", "WEAPONS", "SECURITY", "UNASSIGNED")
+encounter_tags = PackedStringArray("REBELLION", "SMUGGLER", "BREAKAWAY", "BLACK_MARKET")

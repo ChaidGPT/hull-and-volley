@@ -1,0 +1,23 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/sample_capital_ship_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/sample_ships/mining_outpost_layout.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/dialogue/combine_industrial_operator.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+ship_id = &"mining_outpost"
+display_name = "MINING OUTPOST"
+description = "A compact ore-processing platform with one public cargo berth."
+ship_layout = ExtResource("2")
+tactical_tint = Color(0.82, 0.72, 0.42, 1)
+faction_id = &"CHARTERED_COMBINE"
+dialogue_profile = ExtResource("3")
+maximum_shield = 80.0
+maximum_hull = 620.0
+default_behavior = 0
+stationary_world_object = true
+participates_in_combat = false
+docking_connector_extension = 8.0
+tactical_interest_room_types = PackedStringArray("DOCKING", "ENGINEERING", "REACTOR")
+station_service_tags = PackedStringArray("STORE", "CARGO_EXCHANGE", "REPAIR_YARD")

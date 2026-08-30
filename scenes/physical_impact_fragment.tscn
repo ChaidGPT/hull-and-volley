@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/physical_impact_fragment.gd" id="1_fragment"]
+
+[sub_resource type="CircleShape2D" id="CircleShape"]
+radius = 0.75
+
+[node name="PhysicalImpactFragment" type="RigidBody2D"]
+collision_layer = 4
+collision_mask = 1
+gravity_scale = 0.0
+linear_damp = 0.0
+linear_damp_mode = 1
+angular_damp_mode = 1
+can_sleep = false
+continuous_cd = 1
+script = ExtResource("1_fragment")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape")

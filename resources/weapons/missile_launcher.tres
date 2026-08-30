@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3 uid="uid://x4kj7tneum8c"]
+
+[ext_resource type="Script" uid="uid://bck87nvtoxd20" path="res://scripts/resources/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/missile_projectile.tscn" id="2_projectile"]
+[ext_resource type="AudioStream" uid="uid://b4dmkh25kklve" path="res://assets/audio/weapons/prunus/scifi_weapon_medium_burst.ogg" id="3_fire"]
+[ext_resource type="AudioStream" uid="uid://cgfaeyu8fqfx4" path="res://assets/audio/sfx/scifi_hit_large_01.mp3" id="4_impact"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/impact_sprite_heavy.tscn" id="5_impact_visual"]
+
+[resource]
+script = ExtResource("1_weapon")
+weapon_id = &"missile_launcher"
+display_name = "MISSILE LAUNCHER"
+description = "A large two-cell launcher firing heavy explosive missiles. Guidance will be added later."
+weapon_family = "MISSILE"
+damage_type = "EXPLOSIVE"
+maximum_range = 1750.0
+traverse_degrees = 45.0
+uses_exposed_hull_edges = true
+damage = 56.0
+hull_damage_multiplier = 1.1
+fighter_damage_multiplier = 0.7
+accuracy_degrees = 3.0
+penetration_power = 24.0
+reload_seconds = 10.0
+projectile_speed = 330.0
+projectile_collision_radius = 3.0
+projectile_mass = 4.0
+projectile_bounce = 0.0
+blast_radius = 78.0
+visual_color = Color(1, 0.38, 0.16, 1)
+projectile_scene = ExtResource("2_projectile")
+impact_effect_scene = ExtResource("5_impact_visual")
+firing_sound = ExtResource("3_fire")
+firing_volume_db = -2.0
+firing_pitch_variation = 0.035
+impact_sound = ExtResource("4_impact")
+impact_volume_db = 2.0
+impact_pitch_variation = 0.035

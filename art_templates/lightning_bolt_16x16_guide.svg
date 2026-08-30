@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" shape-rendering="crispEdges">
+  <rect width="512" height="512" fill="#081311"/>
+  <g fill="#f2a83d">
+    <rect x="256" y="32" width="64" height="32"/>
+    <rect x="224" y="64" width="96" height="32"/>
+    <rect x="224" y="96" width="64" height="32"/>
+    <rect x="192" y="128" width="96" height="32"/>
+    <rect x="160" y="160" width="96" height="32"/>
+    <rect x="128" y="192" width="192" height="32"/>
+    <rect x="224" y="224" width="96" height="32"/>
+    <rect x="192" y="256" width="96" height="32"/>
+    <rect x="192" y="288" width="64" height="32"/>
+    <rect x="160" y="320" width="96" height="32"/>
+    <rect x="128" y="352" width="96" height="32"/>
+    <rect x="128" y="384" width="64" height="32"/>
+    <rect x="96" y="416" width="96" height="32"/>
+    <rect x="96" y="448" width="64" height="32"/>
+  </g>
+  <g fill="none" stroke="#24534f" stroke-width="1" opacity="0.75">
+    <path d="M32 0V512M64 0V512M96 0V512M128 0V512M160 0V512M192 0V512M224 0V512M256 0V512M288 0V512M320 0V512M352 0V512M384 0V512M416 0V512M448 0V512M480 0V512"/>
+    <path d="M0 32H512M0 64H512M0 96H512M0 128H512M0 160H512M0 192H512M0 224H512M0 256H512M0 288H512M0 320H512M0 352H512M0 384H512M0 416H512M0 448H512M0 480H512"/>
+  </g>
+  <rect x="0.5" y="0.5" width="511" height="511" fill="none" stroke="#46fff0" stroke-width="1"/>
+</svg>

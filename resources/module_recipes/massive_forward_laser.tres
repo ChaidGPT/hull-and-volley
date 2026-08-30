@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_recipe_definition.gd" id="1_recipe"]
+[ext_resource type="Resource" path="res://resources/module_footprints/forward_square_2x2.tres" id="2_footprint"]
+[ext_resource type="Resource" path="res://resources/weapons/laser_emitter.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4_visual"]
+
+[resource]
+script = ExtResource("1_recipe")
+module_id = &"massive_forward_laser"
+display_name = "MASSIVE FORWARD LASER"
+description = "A four-cell laser installation requiring two exposed forward hardpoint edges."
+family = 0
+tags = PackedStringArray("weapon", "laser", "capital", "spinal")
+footprint = ExtResource("2_footprint")
+compatible_grid_types = PackedStringArray("WEAPONS")
+power_draw = 2.0
+minimum_crew = 6
+optimal_crew = 12
+maximum_health = 180.0
+payload_resource = ExtResource("3_weapon")
+visuals = ExtResource("4_visual")

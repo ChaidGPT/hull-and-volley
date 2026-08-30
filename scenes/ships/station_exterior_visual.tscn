@@ -1,0 +1,10 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/station_exterior_visual.gd" id="1"]
+
+[node name="StationExteriorVisual" type="Control"]
+custom_minimum_size = Vector2(520, 544)
+offset_right = 520.0
+offset_bottom = 544.0
+mouse_filter = 2
+script = ExtResource("1")

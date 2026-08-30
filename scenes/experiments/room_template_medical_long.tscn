@@ -1,0 +1,97 @@
+[gd_scene format=3]
+
+[ext_resource type="TileSet" uid="uid://8w6ofa8mla3d" path="res://resources/tilesets/spacestation_tileset.tres" id="1_tileset"]
+
+[node name="LongMedicalRoomTemplate" type="Node2D"]
+editor_description = "Long half-grid room template. The complete 5x10 tile footprint represents a medical bay or another narrow full-length room. Paint floors and fixtures on their layers, then paint only the appropriate edge variant for each side."
+
+[node name="TemplateGuide" type="Polygon2D" parent="."]
+position = Vector2(320, 192)
+polygon = PackedVector2Array(0, 0, 80, 0, 80, 160, 0, 160)
+color = Color(0.05, 0.9, 0.82, 0.045)
+
+[node name="TemplateOutline" type="Line2D" parent="."]
+position = Vector2(320, 192)
+points = PackedVector2Array(0, 0, 80, 0, 80, 160, 0, 160, 0, 0)
+width = 1.0
+default_color = Color(0.18, 0.95, 0.86, 0.65)
+
+[node name="Floor" type="TileMapLayer" parent="."]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Fixtures" type="TileMapLayer" parent="."]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Edges" type="Node2D" parent="."]
+
+[node name="Bow" type="Node2D" parent="Edges"]
+
+[node name="OutsideHull" type="TileMapLayer" parent="Edges/Bow"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="InsideWall" type="TileMapLayer" parent="Edges/Bow"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Door" type="TileMapLayer" parent="Edges/Bow"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Starboard" type="Node2D" parent="Edges"]
+
+[node name="OutsideHull" type="TileMapLayer" parent="Edges/Starboard"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="InsideWall" type="TileMapLayer" parent="Edges/Starboard"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Door" type="TileMapLayer" parent="Edges/Starboard"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Aft" type="Node2D" parent="Edges"]
+
+[node name="OutsideHull" type="TileMapLayer" parent="Edges/Aft"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="InsideWall" type="TileMapLayer" parent="Edges/Aft"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Door" type="TileMapLayer" parent="Edges/Aft"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Port" type="Node2D" parent="Edges"]
+
+[node name="OutsideHull" type="TileMapLayer" parent="Edges/Port"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="InsideWall" type="TileMapLayer" parent="Edges/Port"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")
+
+[node name="Door" type="TileMapLayer" parent="Edges/Port"]
+texture_filter = 1
+position = Vector2(320, 192)
+tile_set = ExtResource("1_tileset")

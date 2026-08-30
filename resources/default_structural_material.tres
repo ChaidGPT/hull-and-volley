@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/structural_material_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+outer_hull_durability = 90.0
+internal_bulkhead_durability = 55.0
+penetration_resistance = 1.0
+breach_vent_rate = 0.08
+equalization_rate = 1.4
+large_breach_length = 1.0
+decompression_pull_radius = 2.5
+decompression_pull_strength = 3.2
+decompression_velocity_damping = 2.0
+healthy_wall_color = Color(0.58, 0.68, 0.69, 0.92)
+damaged_wall_color = Color(1, 0.38, 0.16, 1)
+breach_marker_color = Color(1, 0.22, 0.12, 1)

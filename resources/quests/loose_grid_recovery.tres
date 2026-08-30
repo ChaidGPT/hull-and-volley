@@ -1,0 +1,17 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/quest_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+quest_id = &"COMBINE_LOOSE_GRID_RECOVERY"
+display_name = "DRIFT PATTERN"
+summary = "Recover one loose grid section from the sector and return its salvage telemetry to the issuing Combine contact."
+objective_event = &"COLLECT_GRID"
+objective_count = 1
+objective_label = "RECOVER 1 LOOSE GRID"
+spawned_pickup_room_type = &"WORKSHOP"
+spawned_pickup_distance = 280.0
+reward_faction_id = &"CHARTERED_COMBINE"
+reputation_reward = 10.0
+reward_label = "+10 COMBINE STANDING"

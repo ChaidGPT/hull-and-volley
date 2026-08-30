@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/resources/economy_resource_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+resource_id = &"fuel"
+display_name = "FUEL"
+short_name = "FUEL"
+description = "Processed reaction mass and energetic compounds consumed by propulsion and auxiliary machinery."
+display_color = Color(0.95, 0.5, 0.2, 1)
+decimal_places = 1
+storage_per_unit = 1.0

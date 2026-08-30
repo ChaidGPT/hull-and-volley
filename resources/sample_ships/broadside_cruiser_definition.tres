@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/sample_capital_ship_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/sample_ships/broadside_cruiser_layout.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+ship_id = &"broadside_cruiser"
+display_name = "BROADSIDE CRUISER"
+description = "A heavy galleon-style cruiser with paired cannon batteries and twin flight decks."
+ship_layout = ExtResource("2")
+tactical_tint = Color(1, 0.58, 0.4, 1)
+maximum_shield = 180.0
+maximum_hull = 320.0
+default_behavior = 2

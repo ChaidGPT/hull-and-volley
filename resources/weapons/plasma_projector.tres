@@ -1,0 +1,40 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3 uid="uid://dgu6gn8spvjy8"]
+
+[ext_resource type="Script" uid="uid://bck87nvtoxd20" path="res://scripts/resources/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/plasma_projectile.tscn" id="2_projectile"]
+[ext_resource type="AudioStream" uid="uid://bpv4b0orq2p78" path="res://assets/audio/weapons/prunus/scifi_weapon_laser_big.ogg" id="3_fire"]
+[ext_resource type="AudioStream" uid="uid://cgfaeyu8fqfx4" path="res://assets/audio/sfx/scifi_hit_large_01.mp3" id="4_impact"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/impact_sprite_heavy.tscn" id="5_impact_visual"]
+
+[resource]
+script = ExtResource("1_weapon")
+weapon_id = &"plasma_projector"
+display_name = "PLASMA PROJECTOR"
+description = "A large two-cell energy weapon launching slow, destructive plasma masses."
+weapon_family = "ENERGY"
+damage_type = "ENERGY"
+maximum_range = 850.0
+traverse_degrees = 18.0
+damage = 44.0
+shield_damage_multiplier = 1.15
+hull_damage_multiplier = 0.9
+system_damage_multiplier = 1.5
+breach_damage_multiplier = 0.7
+fighter_damage_multiplier = 0.45
+accuracy_degrees = 2.5
+penetration_power = 34.0
+reload_seconds = 7.5
+projectile_speed = 275.0
+projectile_collision_radius = 5.0
+projectile_mass = 5.0
+projectile_bounce = 0.0
+blast_radius = 42.0
+visual_color = Color(0.64, 0.28, 1, 1)
+projectile_scene = ExtResource("2_projectile")
+impact_effect_scene = ExtResource("5_impact_visual")
+firing_sound = ExtResource("3_fire")
+firing_volume_db = -1.0
+firing_pitch_variation = 0.04
+impact_sound = ExtResource("4_impact")
+impact_volume_db = 1.5
+impact_pitch_variation = 0.05

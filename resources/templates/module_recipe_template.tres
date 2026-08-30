@@ -1,0 +1,39 @@
+[gd_resource type="Resource" load_steps=10 format=3]
+[ext_resource type="Script" path="res://scripts/resources/module_recipe_definition.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/resources/resource_cost.gd" id="2"]
+[ext_resource type="Resource" path="res://resources/module_footprints/one_cell.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/economy/credits.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/economy/metals.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/economy/electronics.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/templates/module_visual_template.tres" id="7"]
+[sub_resource type="Resource" id="CostCredits"]
+script = ExtResource("2")
+resource = ExtResource("4")
+amount = 100.0
+recoverable_on_dismantle = false
+recovery_ratio = 0.0
+[sub_resource type="Resource" id="CostMetals"]
+script = ExtResource("2")
+resource = ExtResource("5")
+amount = 25.0
+recovery_ratio = 0.5
+[sub_resource type="Resource" id="CostElectronics"]
+script = ExtResource("2")
+resource = ExtResource("6")
+amount = 5.0
+recovery_ratio = 0.25
+[resource]
+script = ExtResource("1")
+module_id = &"duplicate_and_rename_me"
+display_name = "NEW MODULE TEMPLATE"
+description = "Duplicate this resource, rename it, then replace these sample values with the new module's design."
+family = 10
+tags = PackedStringArray("template")
+footprint = ExtResource("3")
+compatible_grid_types = PackedStringArray("UNASSIGNED")
+construction_costs = Array[Resource]([SubResource("CostCredits"), SubResource("CostMetals"), SubResource("CostElectronics")])
+build_time = 10.0
+minimum_crew = 1
+optimal_crew = 2
+maximum_health = 100.0
+visuals = ExtResource("7")

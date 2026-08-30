@@ -1,0 +1,21 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/resources/module_visual_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/module_visuals/vector_module_template.tscn" id="2"]
+[resource]
+script = ExtResource("1")
+tactical_scene = ExtResource("2")
+settlement_scene = ExtResource("2")
+crew_scene = ExtResource("2")
+animation_player_path = NodePath("AnimationPlayer")
+turret_pivot_path = NodePath("TurretPivot")
+barrel_pivot_path = NodePath("TurretPivot/BarrelPivot")
+muzzle_marker_path = NodePath("TurretPivot/BarrelPivot/Muzzle")
+secondary_effect_marker_path = NodePath("TurretPivot/BarrelPivot/SecondaryEffect")
+idle_animation = &"idle"
+aim_animation = &"aim"
+fire_animation = &"fire"
+reload_animation = &"reload"
+charge_animation = &"charge"
+cooldown_animation = &"cooldown"
+damaged_animation = &"damaged"
+destroyed_animation = &"destroyed"

@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/neutral_encounter_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+encounter_id = &"TRANSIT_FLEET"
+display_name = "FLEET IN TRANSIT"
+description = "A valuable organized formation crossing the sector slowly. Hailing, shadowing, raiding, or avoiding it may all be viable."
+selection_weight = 1.0
+minimum_contacts = 4
+maximum_contacts = 12
+sector_tags = PackedStringArray("FLEET", "HIGH_VALUE", "TRANSIT")
+faction_ids = PackedStringArray("UNITED_SYSTEMS", "CHARTERED_COMBINE", "FREE_SYSTEMS")
+creates_shipping_lane = true
+creates_moving_formation = true

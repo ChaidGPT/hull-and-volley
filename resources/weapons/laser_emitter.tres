@@ -1,0 +1,39 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3 uid="uid://ofkujh266o1u"]
+
+[ext_resource type="Script" uid="uid://bck87nvtoxd20" path="res://scripts/resources/weapon_definition.gd" id="1_weapon"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/templates/energy_projectile_template.tscn" id="2_projectile"]
+[ext_resource type="AudioStream" uid="uid://dg7f6yigkvhw5" path="res://assets/audio/weapons/prunus/scifi_weapon_laser_medium.ogg" id="3_fire"]
+[ext_resource type="AudioStream" uid="uid://cgfaeyu8fqfx4" path="res://assets/audio/sfx/scifi_hit_large_01.mp3" id="4_impact"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/laser_emitter_mount_visual.tscn" id="5_mount"]
+
+[resource]
+script = ExtResource("1_weapon")
+weapon_id = &"laser_emitter"
+display_name = "LASER EMITTER"
+description = "A precise, extremely fast thermal weapon with modest per-shot damage."
+weapon_family = "LASER"
+damage_type = "THERMAL"
+maximum_range = 1350.0
+traverse_degrees = 22.0
+damage = 18.0
+shield_damage_multiplier = 1.4
+hull_damage_multiplier = 0.65
+system_damage_multiplier = 1.1
+breach_damage_multiplier = 0.1
+fighter_damage_multiplier = 0.8
+accuracy_degrees = 0.35
+penetration_power = 18.0
+reload_seconds = 2.2
+projectile_speed = 1450.0
+projectile_collision_radius = 0.9375
+projectile_mass = 0.01
+projectile_bounce = 0.0
+visual_color = Color(0.25, 0.85, 1, 1)
+projectile_scene = ExtResource("2_projectile")
+mount_visual_scene = ExtResource("5_mount")
+firing_sound = ExtResource("3_fire")
+firing_volume_db = -4.0
+firing_pitch_variation = 0.04
+impact_sound = ExtResource("4_impact")
+impact_volume_db = -6.0
+impact_pitch_variation = 0.09

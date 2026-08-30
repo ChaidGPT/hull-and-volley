@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160" shape-rendering="crispEdges">
+  <!-- Exact 160 x 160 authoring guide. Every grid square is 16 x 16 pixels. -->
+  <rect width="160" height="160" fill="#10171b"/>
+
+  <!-- The room interior. Keep permanent floor art inside this 128 x 128 area. -->
+  <rect x="16" y="16" width="128" height="128" fill="#7894a0"/>
+
+  <!-- Each side owns one 16 px half-wall. No artwork may cross the canvas edge. -->
+  <rect x="16" y="0" width="128" height="16" fill="#5b6172"/>
+  <rect x="144" y="16" width="16" height="128" fill="#6c526f"/>
+  <rect x="16" y="144" width="128" height="16" fill="#5b6172"/>
+  <rect x="0" y="16" width="16" height="128" fill="#6c526f"/>
+
+  <!-- Corners are their own 16 x 16 pieces. -->
+  <rect x="0" y="0" width="16" height="16" fill="#d49a35"/>
+  <rect x="144" y="0" width="16" height="16" fill="#d49a35"/>
+  <rect x="144" y="144" width="16" height="16" fill="#d49a35"/>
+  <rect x="0" y="144" width="16" height="16" fill="#d49a35"/>
+
+  <!-- Suggested 32 px door slots, centered on each wall. -->
+  <rect x="64" y="0" width="32" height="16" fill="#25e7d0"/>
+  <rect x="144" y="64" width="16" height="32" fill="#25e7d0"/>
+  <rect x="64" y="144" width="32" height="16" fill="#25e7d0"/>
+  <rect x="0" y="64" width="16" height="32" fill="#25e7d0"/>
+
+  <!-- 10 x 10 Aseprite grid. -->
+  <g fill="none" stroke="#172b78" stroke-width="1" opacity="0.9">
+    <path d="M16 0V160 M32 0V160 M48 0V160 M64 0V160 M80 0V160 M96 0V160 M112 0V160 M128 0V160 M144 0V160"/>
+    <path d="M0 16H160 M0 32H160 M0 48H160 M0 64H160 M0 80H160 M0 96H160 M0 112H160 M0 128H160 M0 144H160"/>
+  </g>
+  <rect x="0.5" y="0.5" width="159" height="159" fill="none" stroke="#172b78"/>
+</svg>

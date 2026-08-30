@@ -1,0 +1,29 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/tactical_ship_visual.gd" id="1_visual"]
+[ext_resource type="Script" path="res://scripts/shield_visual.gd" id="2_shield"]
+[ext_resource type="Resource" path="res://resources/starting_ship_layout.tres" id="3_layout"]
+
+[node name="EnemyShipVisual" type="Control"]
+custom_minimum_size = Vector2(120, 164)
+offset_right = 120.0
+offset_bottom = 164.0
+mouse_filter = 2
+modulate = Color(1, 0.68, 0.68, 1)
+script = ExtResource("1_visual")
+ship_layout = ExtResource("3_layout")
+
+[node name="ShieldVisual" type="Control" parent="."]
+layout_mode = 0
+offset_right = 120.0
+offset_bottom = 164.0
+mouse_filter = 2
+script = ExtResource("2_shield")
+impact_color = Color(0.38, 0.94, 1, 1)
+wave_color = Color(0.18, 0.7, 0.84, 0.85)
+impact_lifetime = 0.75
+wave_speed = 115.0
+wave_band_width = 10.0
+wave_line_width = 3.0
+impact_marker_radius = 6.0
+impact_standoff = 5.0

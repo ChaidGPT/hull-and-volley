@@ -1,0 +1,19 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/physics_projectile.gd" id="1_projectile"]
+
+[sub_resource type="CircleShape2D" id="CircleShape"]
+radius = 2.0
+
+[node name="PhysicsProjectile" type="RigidBody2D"]
+collision_layer = 2
+collision_mask = 9
+gravity_scale = 0.0
+linear_damp_mode = 1
+angular_damp_mode = 1
+can_sleep = false
+continuous_cd = 1
+script = ExtResource("1_projectile")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("CircleShape")

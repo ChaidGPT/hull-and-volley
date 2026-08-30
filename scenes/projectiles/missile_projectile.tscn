@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/projectile_visual.gd" id="1_visual"]
+
+[node name="MissileProjectile" type="Node2D"]
+script = ExtResource("1_visual")
+
+[node name="Body" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(10.5, 0, 2.5, -3.5, -7.5, -3, -10.5, 0, -7.5, 3, 2.5, 3.5)
+color = Color(0.82, 0.84, 0.78, 1)
+
+[node name="Warhead" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(10.5, 0, 2.5, -3.5, 2.5, 3.5)
+color = Color(0.92, 0.38, 0.18, 1)
+
+[node name="Exhaust" type="Line2D" parent="."]
+metadata/grows_from_muzzle = true
+points = PackedVector2Array(-22.5, 0, -8.5, 0)
+width = 3.0
+default_color = Color(0.35, 0.78, 1, 0.7)
+begin_cap_mode = 2

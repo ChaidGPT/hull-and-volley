@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/resources/hangar_module_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/craft/fighter_behavior.tres" id="2"]
+[resource]
+script = ExtResource("1")
+hangar_id = &"fleet_service_hangar"
+display_name = "FLEET SERVICE HANGAR"
+description = "A station-scale flight complex with multiple launch lanes and internal repair facilities."
+craft_capacity = 24
+simultaneous_launches = 4
+maximum_craft_size = 1
+allowed_craft_roles = PackedStringArray("FIGHTER", "BOMBER", "MINING", "SALVAGE", "UTILITY", "BOARDING", "TRANSPORT")
+repair_per_second = 2.0
+supports_refueling = true
+supports_rearming = true
+launch_cycle_multiplier = 0.65
+default_craft_behavior = ExtResource("2")
+operating_radius = 1250.0
+deployment_interval = 1.4

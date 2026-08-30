@@ -1,0 +1,36 @@
+[gd_resource type="Resource" script_class="CrewRulesDefinition" format=3 uid="uid://cvgnd2w840fn0"]
+
+[ext_resource type="Script" uid="uid://c607jwj3pmbth" path="res://scripts/resources/crew_rules_definition.gd" id="1_rules"]
+[ext_resource type="Script" path="res://scripts/resources/crew_stat_definition.gd" id="2_stat"]
+[ext_resource type="PackedScene" path="res://scenes/crew_portrait.tscn" id="3_portrait"]
+
+[sub_resource type="Resource" id="Operations"]
+script = ExtResource("2_stat")
+description = "General ability to operate command, sensor, shield, and logistical systems."
+display_color = Color(0.35, 0.9, 0.86, 1)
+
+[sub_resource type="Resource" id="Engineering"]
+script = ExtResource("2_stat")
+stat_id = &"engineering"
+display_name = "ENGINEERING"
+description = "Technical aptitude for propulsion, power, repairs, and machinery."
+display_color = Color(0.95, 0.68, 0.26, 1)
+
+[sub_resource type="Resource" id="Combat"]
+script = ExtResource("2_stat")
+stat_id = &"combat"
+display_name = "COMBAT"
+description = "Weapon operation, personal combat, security, and boarding ability."
+display_color = Color(1, 0.36, 0.22, 1)
+
+[sub_resource type="Resource" id="Medical"]
+script = ExtResource("2_stat")
+stat_id = &"medical"
+display_name = "MEDICAL"
+description = "Treatment, recovery, and biological hazard expertise."
+display_color = Color(0.52, 0.9, 0.56, 1)
+
+[resource]
+script = ExtResource("1_rules")
+stats = Array[Resource]([SubResource("Operations"), SubResource("Engineering"), SubResource("Combat"), SubResource("Medical")])
+default_portrait_scene = ExtResource("3_portrait")

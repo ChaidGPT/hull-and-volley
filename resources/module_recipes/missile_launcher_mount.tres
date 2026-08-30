@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_recipe_definition.gd" id="1_recipe"]
+[ext_resource type="Resource" path="res://resources/module_footprints/one_cell.tres" id="2_footprint"]
+[ext_resource type="Resource" path="res://resources/weapons/missile_launcher.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4_visual"]
+
+[resource]
+script = ExtResource("1_recipe")
+module_id = &"missile_launcher_mount"
+display_name = "MISSILE LAUNCHER"
+description = "A compact guided-ordnance cell with an internal magazine."
+family = 0
+tags = PackedStringArray("weapon", "missile", "explosive", "heavy")
+footprint = ExtResource("2_footprint")
+compatible_grid_types = PackedStringArray("WEAPONS")
+power_draw = 2.0
+minimum_crew = 3
+optimal_crew = 6
+maximum_health = 70.0
+payload_resource = ExtResource("3_weapon")
+visuals = ExtResource("4_visual")

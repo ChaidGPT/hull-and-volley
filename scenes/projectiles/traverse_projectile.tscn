@@ -1,0 +1,62 @@
+[gd_scene load_steps=7 format=3]
+
+[ext_resource type="Script" path="res://scripts/animated_projectile_visual.gd" id="1_visual"]
+[ext_resource type="Texture2D" path="res://assets/sprites/projectiles/all_fire_bullet_16x16/All_Fire_Bullet_Pixel_16x16_00.png" id="2_sheet"]
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_flight_1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(256, 160, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_flight_2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(272, 160, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_flight_3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(288, 160, 16, 16)
+
+[sub_resource type="AtlasTexture" id="AtlasTexture_flight_4"]
+atlas = ExtResource("2_sheet")
+region = Rect2(304, 160, 16, 16)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_traverse"]
+animations = [{
+"frames": [{
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_flight_1")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_flight_2")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_flight_3")
+}, {
+"duration": 1.0,
+"texture": SubResource("AtlasTexture_flight_4")
+}],
+"loop": true,
+"name": &"flight",
+"speed": 18.0
+}, {
+"frames": [],
+"loop": false,
+"name": &"impact",
+"speed": 16.0
+}, {
+"frames": [],
+"loop": false,
+"name": &"spawn",
+"speed": 16.0
+}]
+
+[node name="TraverseProjectile" type="Node2D"]
+script = ExtResource("1_visual")
+art_scale = 0.35
+randomize_flight_start = true
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+sprite_frames = SubResource("SpriteFrames_traverse")
+animation = &"flight"
+autoplay = "flight"
+centered = true

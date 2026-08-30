@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/crew_equipment_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "VACUUM SUIT"
+description = "A sealed emergency suit that protects its wearer during decompression and permits damage-control work in vacuum."
+vacuum_damage_reduction = 0.9
+permits_vacuum_work = true
+

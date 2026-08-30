@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_recipe_definition.gd" id="1_recipe"]
+[ext_resource type="Resource" path="res://resources/module_footprints/one_cell.tres" id="2_footprint"]
+[ext_resource type="Resource" path="res://resources/weapons/laser_emitter.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4_visual"]
+
+[resource]
+script = ExtResource("1_recipe")
+module_id = &"laser_emitter_mount"
+display_name = "LASER EMITTER MOUNT"
+description = "A compact precision laser installation for one exposed hardpoint."
+family = 0
+tags = PackedStringArray("weapon", "laser", "precision")
+footprint = ExtResource("2_footprint")
+compatible_grid_types = PackedStringArray("WEAPONS")
+power_draw = 1.0
+minimum_crew = 1
+optimal_crew = 3
+maximum_health = 24.0
+payload_resource = ExtResource("3_weapon")
+visuals = ExtResource("4_visual")

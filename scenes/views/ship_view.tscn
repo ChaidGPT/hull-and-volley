@@ -1,0 +1,757 @@
+[gd_scene format=3 uid="uid://dufdrwben24wp"]
+
+[ext_resource type="Script" uid="uid://4i7mtqgd0ybe" path="res://scripts/ship_view.gd" id="1_view"]
+[ext_resource type="Script" uid="uid://dhkl5q76dx1x" path="res://scripts/view_zoom.gd" id="2_zoom"]
+[ext_resource type="Script" uid="uid://ckanriextepla" path="res://scripts/tactical_world.gd" id="3_world"]
+[ext_resource type="Script" uid="uid://cm3su80b63n1f" path="res://scripts/shield_visual.gd" id="4_shield"]
+[ext_resource type="Script" uid="uid://b22e2xged1nt1" path="res://scripts/parallax_starfield.gd" id="5_stars"]
+[ext_resource type="Script" uid="uid://b5llh43y3nxxv" path="res://scripts/tactical_ship_visual.gd" id="6_ship_visual"]
+[ext_resource type="Resource" path="res://resources/starting_ship_layout.tres" id="7_layout"]
+[ext_resource type="Script" path="res://scripts/sector_region_parallax.gd" id="8_region_parallax"]
+
+[sub_resource type="StyleBoxFlat" id="HullStyle"]
+bg_color = Color(0.16, 0.21, 0.25, 1)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.42, 0.72, 0.76, 1)
+
+[sub_resource type="StyleBoxFlat" id="BridgeStyle"]
+bg_color = Color(0.12, 0.3, 0.35, 1)
+border_width_bottom = 2
+border_color = Color(0.32, 0.62, 0.66, 1)
+
+[sub_resource type="StyleBoxFlat" id="EngineStyle"]
+bg_color = Color(0.24, 0.16, 0.13, 1)
+border_width_top = 2
+border_color = Color(0.63, 0.39, 0.24, 1)
+
+[sub_resource type="StyleBoxFlat" id="HudStyle"]
+bg_color = Color(0.025, 0.055, 0.078, 0.9)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.13, 0.33, 0.42, 1)
+
+[sub_resource type="StyleBoxFlat" id="NeonCyan"]
+bg_color = Color(0.015, 0.105, 0.12, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.15, 0.95, 1, 0.95)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.05, 0.9, 1, 0.35)
+shadow_size = 5
+
+[sub_resource type="StyleBoxFlat" id="NeonCyanHover"]
+bg_color = Color(0.025, 0.22, 0.24, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(0.55, 1, 1, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(0.1, 0.95, 1, 0.65)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="NeonMagenta"]
+bg_color = Color(0.12, 0.02, 0.11, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.2, 0.78, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(1, 0.08, 0.65, 0.32)
+shadow_size = 5
+
+[sub_resource type="StyleBoxFlat" id="NeonMagentaHover"]
+bg_color = Color(0.25, 0.035, 0.2, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.6, 0.9, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(1, 0.15, 0.72, 0.6)
+shadow_size = 8
+
+[sub_resource type="StyleBoxFlat" id="NeonAmber"]
+bg_color = Color(0.13, 0.07, 0.01, 0.96)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 0.62, 0.12, 0.9)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(1, 0.44, 0.05, 0.3)
+shadow_size = 5
+
+[sub_resource type="StyleBoxFlat" id="NeonAmberHover"]
+bg_color = Color(0.25, 0.12, 0.015, 0.98)
+border_width_left = 3
+border_width_top = 3
+border_width_right = 3
+border_width_bottom = 3
+border_color = Color(1, 0.85, 0.38, 1)
+corner_radius_top_left = 4
+corner_radius_top_right = 4
+corner_radius_bottom_right = 4
+corner_radius_bottom_left = 4
+shadow_color = Color(1, 0.5, 0.08, 0.55)
+shadow_size = 8
+
+[node name="ShipView" type="Control" unique_id=1330381959]
+clip_contents = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_view")
+
+[node name="Backdrop" type="ColorRect" parent="." unique_id=1631713517]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.008, 0.016, 0.026, 1)
+
+[node name="Starfield" type="Control" parent="." unique_id=855797226]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_stars")
+
+[node name="RegionParallax" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("8_region_parallax")
+world_path = NodePath("../World")
+
+[node name="World" type="Control" parent="." unique_id=1809337330]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(10000, 10000)
+anchors_preset = 0
+offset_right = 10000.0
+offset_bottom = 10000.0
+mouse_filter = 2
+script = ExtResource("3_world")
+
+[node name="ManualTargetLine" type="Line2D" parent="World" unique_id=113369804]
+unique_name_in_owner = true
+visible = false
+width = 1.5
+default_color = Color(1, 0.36, 0.22, 0.72)
+joint_mode = 1
+begin_cap_mode = 2
+end_cap_mode = 2
+
+[node name="PlaceholderShip" type="Control" parent="World" unique_id=911294618]
+unique_name_in_owner = true
+anchors_preset = 0
+offset_left = 4930.0
+offset_top = 4858.0
+offset_right = 5070.0
+offset_bottom = 5142.0
+pivot_offset = Vector2(70, 142)
+mouse_filter = 2
+script = ExtResource("6_ship_visual")
+ship_layout = ExtResource("7_layout")
+
+[node name="ShieldVisual" type="Control" parent="World/PlaceholderShip" unique_id=1315116706]
+unique_name_in_owner = true
+anchors_preset = 0
+offset_left = 4.0
+offset_top = 16.0
+offset_right = 136.0
+offset_bottom = 268.0
+mouse_filter = 2
+script = ExtResource("4_shield")
+
+[node name="WeaponMounts" type="Control" parent="World/PlaceholderShip" unique_id=414637695]
+visible = false
+anchors_preset = 0
+offset_right = 140.0
+offset_bottom = 284.0
+mouse_filter = 2
+
+[node name="BowPort" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=606758238]
+layout_mode = 0
+offset_left = 32.0
+offset_top = 35.0
+offset_right = 52.0
+offset_bottom = 53.0
+color = Color(0.72, 0.42, 0.16, 1)
+
+[node name="BowStarboard" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=631560015]
+layout_mode = 0
+offset_left = 88.0
+offset_top = 35.0
+offset_right = 108.0
+offset_bottom = 53.0
+color = Color(0.72, 0.42, 0.16, 1)
+
+[node name="PortForward" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=2147470141]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 76.0
+offset_right = 24.0
+offset_bottom = 97.0
+color = Color(0.62, 0.34, 0.14, 1)
+
+[node name="PortMidship" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=933126168]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 132.0
+offset_right = 24.0
+offset_bottom = 153.0
+color = Color(0.62, 0.34, 0.14, 1)
+
+[node name="PortAft" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=1266010904]
+layout_mode = 0
+offset_left = 7.0
+offset_top = 188.0
+offset_right = 24.0
+offset_bottom = 209.0
+color = Color(0.62, 0.34, 0.14, 1)
+
+[node name="StarboardForward" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=354426373]
+layout_mode = 0
+offset_left = 116.0
+offset_top = 76.0
+offset_right = 133.0
+offset_bottom = 97.0
+color = Color(0.62, 0.34, 0.14, 1)
+
+[node name="StarboardMidship" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=368599473]
+layout_mode = 0
+offset_left = 116.0
+offset_top = 132.0
+offset_right = 133.0
+offset_bottom = 153.0
+color = Color(0.62, 0.34, 0.14, 1)
+
+[node name="StarboardAft" type="ColorRect" parent="World/PlaceholderShip/WeaponMounts" unique_id=1589704410]
+layout_mode = 0
+offset_left = 116.0
+offset_top = 188.0
+offset_right = 133.0
+offset_bottom = 209.0
+color = Color(0.62, 0.34, 0.14, 1)
+
+[node name="BowLabel" type="Label" parent="World/PlaceholderShip" unique_id=1626157793]
+visible = false
+layout_mode = 0
+offset_right = 140.0
+offset_bottom = 24.0
+theme_override_colors/font_color = Color(0.93, 0.67, 0.3, 1)
+theme_override_font_sizes/font_size = 11
+text = "FRONT / BOW"
+horizontal_alignment = 1
+
+[node name="DirectionMarker" type="Label" parent="World/PlaceholderShip" unique_id=1351844829]
+visible = false
+layout_mode = 0
+offset_top = 19.0
+offset_right = 140.0
+offset_bottom = 40.0
+theme_override_colors/font_color = Color(0.93, 0.67, 0.3, 1)
+theme_override_font_sizes/font_size = 18
+text = "^"
+horizontal_alignment = 1
+
+[node name="Hull" type="PanelContainer" parent="World/PlaceholderShip" unique_id=125022726]
+visible = false
+layout_mode = 0
+offset_left = 22.0
+offset_top = 43.0
+offset_right = 118.0
+offset_bottom = 239.0
+theme_override_styles/panel = SubResource("HullStyle")
+
+[node name="Decks" type="VBoxContainer" parent="World/PlaceholderShip/Hull" unique_id=1156341821]
+layout_mode = 2
+theme_override_constants/separation = 0
+
+[node name="Bridge" type="CenterContainer" parent="World/PlaceholderShip/Hull/Decks" unique_id=366327664]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+
+[node name="Panel" type="PanelContainer" parent="World/PlaceholderShip/Hull/Decks/Bridge" unique_id=845159483]
+custom_minimum_size = Vector2(64, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("BridgeStyle")
+
+[node name="Label" type="Label" parent="World/PlaceholderShip/Hull/Decks/Bridge/Panel" unique_id=1981479564]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.61, 0.86, 0.86, 1)
+theme_override_font_sizes/font_size = 10
+text = "BRIDGE"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="MainHull" type="CenterContainer" parent="World/PlaceholderShip/Hull/Decks" unique_id=2133790003]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Label" type="Label" parent="World/PlaceholderShip/Hull/Decks/MainHull" unique_id=660602266]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.44, 0.58, 0.63, 1)
+theme_override_font_sizes/font_size = 10
+text = "MAIN HULL"
+
+[node name="EngineDeck" type="PanelContainer" parent="World/PlaceholderShip/Hull/Decks" unique_id=1302937159]
+custom_minimum_size = Vector2(0, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("EngineStyle")
+
+[node name="Label" type="Label" parent="World/PlaceholderShip/Hull/Decks/EngineDeck" unique_id=1832055513]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.81, 0.57, 0.37, 1)
+theme_override_font_sizes/font_size = 10
+text = "THRUSTER DECK"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LeftEngine" type="ColorRect" parent="World/PlaceholderShip" unique_id=1383625989]
+visible = false
+layout_mode = 0
+offset_left = 38.0
+offset_top = 239.0
+offset_right = 59.0
+offset_bottom = 254.0
+color = Color(0.85, 0.43, 0.2, 1)
+
+[node name="RightEngine" type="ColorRect" parent="World/PlaceholderShip" unique_id=1090898147]
+visible = false
+layout_mode = 0
+offset_left = 81.0
+offset_top = 239.0
+offset_right = 102.0
+offset_bottom = 254.0
+color = Color(0.85, 0.43, 0.2, 1)
+
+[node name="SternLabel" type="Label" parent="World/PlaceholderShip" unique_id=1316831677]
+visible = false
+layout_mode = 0
+offset_top = 259.0
+offset_right = 140.0
+offset_bottom = 280.0
+theme_override_colors/font_color = Color(0.65, 0.4, 0.25, 1)
+theme_override_font_sizes/font_size = 10
+text = "REAR / STERN"
+horizontal_alignment = 1
+
+[node name="ZoomController" type="Node" parent="." unique_id=1471633833]
+unique_name_in_owner = true
+script = ExtResource("2_zoom")
+target_path = NodePath("../World")
+zoom_label_path = NodePath("../ScaleReadout")
+zoom_label_prefix = "COMMAND ZOOM"
+minimum_zoom = 0.2
+maximum_zoom = 8.0
+allow_panning = false
+zoom_around_pointer = false
+manage_label_opacity = false
+
+[node name="TargetingPanel" type="PanelContainer" parent="." unique_id=2143201111]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -340.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 176.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+
+[node name="Margin" type="MarginContainer" parent="TargetingPanel" unique_id=1872801638]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 6
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 6
+
+[node name="Content" type="VBoxContainer" parent="TargetingPanel/Margin" unique_id=1717184621]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="ContactPanelTitle" type="Label" parent="TargetingPanel/Margin/Content" unique_id=513559976]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.38, 0.72, 0.82, 1)
+theme_override_font_sizes/font_size = 10
+text = "TACTICAL CONTACT"
+
+[node name="ContactName" type="Label" parent="TargetingPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.82, 0.36, 1)
+theme_override_font_sizes/font_size = 14
+text = "NO CONTACT"
+clip_text = true
+
+[node name="ContactStatus" type="Label" parent="TargetingPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.9, 0.95, 1)
+theme_override_font_sizes/font_size = 9
+text = "SELECT BODY TO INSPECT"
+clip_text = true
+
+[node name="CombatContactActions" type="VBoxContainer" parent="TargetingPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="ContactTargetToggle" type="Button" parent="TargetingPanel/Margin/Content/CombatContactActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+theme_override_font_sizes/font_size = 10
+toggle_mode = true
+text = "AUTHORIZE TARGETING"
+
+[node name="DoctrineTitle" type="Label" parent="TargetingPanel/Margin/Content/CombatContactActions"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.38, 0.72, 0.82, 1)
+theme_override_font_sizes/font_size = 9
+text = "TARGETING DOCTRINE"
+
+[node name="Modes" type="HBoxContainer" parent="TargetingPanel/Margin/Content/CombatContactActions" unique_id=1554990949]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="WeaponsFreeButton" type="Button" parent="TargetingPanel/Margin/Content/CombatContactActions/Modes" unique_id=184325038]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+toggle_mode = true
+text = "WEAPONS FREE"
+
+[node name="CenterMassButton" type="Button" parent="TargetingPanel/Margin/Content/CombatContactActions/Modes" unique_id=522740457]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "CENTER MASS"
+
+[node name="ManualButton" type="Button" parent="TargetingPanel/Margin/Content/CombatContactActions/Modes" unique_id=433217136]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 24)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 10
+toggle_mode = true
+text = "MANUAL"
+
+[node name="ManualStatus" type="Label" parent="TargetingPanel/Margin/Content/CombatContactActions" unique_id=1046607502]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.62, 0.28, 1)
+theme_override_font_sizes/font_size = 9
+text = "SELECT FRIENDLY WEAPONS, THEN ENEMY ROOM"
+horizontal_alignment = 1
+
+[node name="SafeContactActions" type="VBoxContainer" parent="TargetingPanel/Margin/Content"]
+visible = false
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="SafeContactActionTitle" type="Label" parent="TargetingPanel/Margin/Content/SafeContactActions"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.38, 0.72, 0.82, 1)
+theme_override_font_sizes/font_size = 9
+text = "DOCKING CONTROL"
+
+[node name="SafeContactAction" type="Button" parent="TargetingPanel/Margin/Content/SafeContactActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 1, 0.86, 1)
+theme_override_font_sizes/font_size = 10
+text = "REQUEST DOCKING CLEARANCE >"
+
+[node name="SafeContactFeedback" type="Label" parent="TargetingPanel/Margin/Content/SafeContactActions"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.62, 0.28, 1)
+theme_override_font_sizes/font_size = 9
+text = "CHANNEL READY"
+horizontal_alignment = 1
+
+[node name="DockedPanel" type="PanelContainer" parent="."]
+visible = false
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -310.0
+offset_top = -214.0
+offset_right = 310.0
+offset_bottom = 214.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("HudStyle")
+
+[node name="Margin" type="MarginContainer" parent="DockedPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 12
+
+[node name="Content" type="VBoxContainer" parent="DockedPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 11
+
+[node name="HeaderRow" type="HBoxContainer" parent="DockedPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Header" type="Label" parent="DockedPanel/Margin/Content/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.38, 0.72, 0.82, 1)
+theme_override_font_sizes/font_size = 10
+text = "STATION CONCOURSE • BERTH HARDLINE"
+
+[node name="CloseDockedPanelButton" type="Button" parent="DockedPanel/Margin/Content/HeaderRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(42, 28)
+layout_mode = 2
+theme_override_font_sizes/font_size = 11
+text = "X"
+
+[node name="DockedContactName" type="Label" parent="DockedPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.35, 0.82, 1)
+theme_override_font_sizes/font_size = 22
+text = "ORBITAL STATION"
+horizontal_alignment = 1
+
+[node name="Welcome" type="Label" parent="DockedPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.95, 0.9, 1)
+theme_override_font_sizes/font_size = 10
+text = "CLAMPS SECURED • PRESSURE SEAL NOMINAL • PICK A SIGN"
+horizontal_alignment = 1
+
+[node name="NeonServices" type="GridContainer" parent="DockedPanel/Margin/Content"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+columns = 2
+
+[node name="StationDrydockButton" type="Button" parent="DockedPanel/Margin/Content/NeonServices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.62, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("NeonCyan")
+theme_override_styles/hover = SubResource("NeonCyanHover")
+theme_override_styles/pressed = SubResource("NeonCyanHover")
+text = "DRYDOCK\nBLUEPRINT LAB"
+
+[node name="StationRepairButton" type="Button" parent="DockedPanel/Margin/Content/NeonServices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.74, 0.32, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("NeonAmber")
+theme_override_styles/hover = SubResource("NeonAmberHover")
+theme_override_styles/pressed = SubResource("NeonAmberHover")
+text = "SPARK & SPANNER\nREPAIR YARD"
+
+[node name="StationMarketButton" type="Button" parent="DockedPanel/Margin/Content/NeonServices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.55, 0.88, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("NeonMagenta")
+theme_override_styles/hover = SubResource("NeonMagentaHover")
+theme_override_styles/pressed = SubResource("NeonMagentaHover")
+text = "VOIDLIGHT\nNIGHT MARKET"
+
+[node name="StationCrewButton" type="Button" parent="DockedPanel/Margin/Content/NeonServices"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 92)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.62, 1, 1, 1)
+theme_override_font_sizes/font_size = 16
+theme_override_styles/normal = SubResource("NeonCyan")
+theme_override_styles/hover = SubResource("NeonCyanHover")
+theme_override_styles/pressed = SubResource("NeonCyanHover")
+text = "THE NIGHT SHIFT\nCREW EXCHANGE"
+
+[node name="StationServiceStatus" type="Label" parent="DockedPanel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.62, 0.28, 1)
+theme_override_font_sizes/font_size = 10
+text = "SELECT A NEON SERVICE CHANNEL"
+horizontal_alignment = 1
+
+[node name="ReleaseClampsButton" type="Button" parent="DockedPanel/Margin/Content"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.55, 0.32, 1)
+theme_override_font_sizes/font_size = 11
+text = "RELEASE CLAMPS • DEPART STATION"
+
+[node name="DevMenuToggle" type="Button" parent="." unique_id=1040849958]
+visible = false
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 20.0
+offset_top = 180.0
+offset_right = 136.0
+offset_bottom = 208.0
+toggle_mode = true
+text = "DEV TOOLS >"
+
+[node name="DevMenu" type="PanelContainer" parent="." unique_id=873607731]
+visible = false
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 20.0
+offset_top = 214.0
+offset_right = 286.0
+offset_bottom = 495.0
+theme_override_styles/panel = SubResource("HudStyle")
+
+[node name="Margin" type="MarginContainer" parent="DevMenu" unique_id=1132755983]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 9
+
+[node name="Controls" type="VBoxContainer" parent="DevMenu/Margin" unique_id=821222626]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="DevMenu/Margin/Controls" unique_id=1677421915]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.86, 0.88, 1)
+theme_override_font_sizes/font_size = 13
+text = "COMBAT DEV TOOLS"
+
+[node name="BehaviorLabel" type="Label" parent="DevMenu/Margin/Controls" unique_id=927683840]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.29, 0.57, 0.64, 1)
+theme_override_font_sizes/font_size = 10
+text = "ENEMY BEHAVIOR"
+
+[node name="EnemyBehaviorSelector" type="OptionButton" parent="DevMenu/Margin/Controls" unique_id=1362068758]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+
+[node name="SpawnEnemyButton" type="Button" parent="DevMenu/Margin/Controls" unique_id=111311096]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+text = "SPAWN PLAYER-SHIP COPY"
+
+[node name="SampleShipLabel" type="Label" parent="DevMenu/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.29, 0.57, 0.64, 1)
+theme_override_font_sizes/font_size = 10
+text = "AUTHORED SAMPLE SHIP"
+
+[node name="SampleShipSelector" type="OptionButton" parent="DevMenu/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+
+[node name="SpawnSampleShipButton" type="Button" parent="DevMenu/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+text = "SPAWN SELECTED SAMPLE"
+
+[node name="ClearEnemiesButton" type="Button" parent="DevMenu/Margin/Controls" unique_id=1266750818]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+text = "CLEAR ALL ENEMIES"
+
+[node name="EnemyCountLabel" type="Label" parent="DevMenu/Margin/Controls" unique_id=755406468]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.4, 0.68, 0.72, 1)
+theme_override_font_sizes/font_size = 10
+text = "ACTIVE ENEMIES • 0"
+
+[node name="ScaleReadout" type="Label" parent="." unique_id=270587018]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -238.0
+offset_top = -48.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.24, 0.45, 0.52, 1)
+theme_override_font_sizes/font_size = 11
+text = "TACTICAL ZOOM • 1.00x"
+horizontal_alignment = 2

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/destruction_debris_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+outline_fragment_coverage = 0.9
+minimum_break_speed = 18.0
+maximum_break_speed = 65.0
+lifetime = 4.0
+fragment_length_scale = 0.82
+collision_radius = 1.0
+fragment_mass = 0.35
+bounce = 0.35
+friction = 0.2
+linear_damping = 0.28
+minimum_tumble_degrees = 45.0
+maximum_tumble_degrees = 220.0
+hull_color = Color(0.62, 0.72, 0.74, 1)
+hot_fragment_chance = 0.22
+hot_color = Color(1, 0.48, 0.12, 1)
+line_width = 1.5

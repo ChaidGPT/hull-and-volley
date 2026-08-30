@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/crew_visual_definition.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/crew/character_template.png" id="2_sprite"]
+
+[resource]
+script = ExtResource("1")
+dot_radius = 13.0
+settlement_dot_radius = 1.85
+outline_width = 4.0
+base_color = Color(0.48, 0.96, 0.86, 1)
+selection_color = Color(1, 0.72, 0.24, 1)
+sprite_sheet = ExtResource("2_sprite")
+sprite_frame_size = Vector2i(64, 64)
+sprite_scale = 1.2
+rest_sprite_scale_multiplier = 0.68
+rest_sprite_offset_ratio = Vector2(0, 0)
+collision_radius_cells = 0.44
+work_slots_per_cell = 4
+movement_speed_cells = 0.65
+minimum_idle_seconds = 2.0
+maximum_idle_seconds = 9.0

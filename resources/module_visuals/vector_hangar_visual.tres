@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_visual_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/module_visuals/vector_hangar_template.tscn" id="2"]
+
+[resource]
+script = ExtResource("1")
+tactical_scene = ExtResource("2")
+settlement_scene = ExtResource("2")
+crew_scene = ExtResource("2")
+animation_player_path = NodePath("AnimationPlayer")
+muzzle_marker_path = NodePath("LaunchPoint")
+idle_animation = &"idle"
+activate_animation = &"launch"
+active_animation = &"doors_open"
+damaged_animation = &"damaged"
+destroyed_animation = &"destroyed"
+

@@ -1,0 +1,21 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/vector_impact_burst.gd" id="1_burst"]
+
+[node name="VectorImpactBurst" type="Node2D"]
+script = ExtResource("1_burst")
+particle_count = 12
+minimum_speed = 55.0
+maximum_speed = 145.0
+minimum_length = 3.0
+maximum_length = 9.0
+lifetime = 0.48
+line_width = 1.5
+drag = 95.0
+spread_degrees = 72.0
+incoming_energy_influence = 0.2
+surface_velocity_inheritance = 1.0
+surface_offset = 2.5
+spark_color = Color(1, 0.62, 0.18, 1)
+hot_color = Color(0.72, 1, 0.96, 1)
+hot_particle_chance = 0.3

@@ -1,0 +1,27 @@
+[gd_scene format=3]
+
+[node name="VectorHangarVisual" type="Node2D"]
+
+[node name="Bay" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-9, -8, 9, -8, 9, 8, -9, 8)
+color = Color(0.16, 0.28, 0.3, 1)
+
+[node name="Door" type="Polygon2D" parent="."]
+polygon = PackedVector2Array(-7, -6, 7, -6, 7, 2, -7, 2)
+color = Color(0.06, 0.09, 0.1, 1)
+
+[node name="GuidePort" type="Line2D" parent="."]
+points = PackedVector2Array(-6, 5, -1, 5)
+width = 2.0
+default_color = Color(0.25, 0.95, 1, 1)
+
+[node name="GuideStarboard" type="Line2D" parent="."]
+points = PackedVector2Array(1, 5, 6, 5)
+width = 2.0
+default_color = Color(0.25, 0.95, 1, 1)
+
+[node name="LaunchPoint" type="Marker2D" parent="."]
+position = Vector2(0, 8)
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+

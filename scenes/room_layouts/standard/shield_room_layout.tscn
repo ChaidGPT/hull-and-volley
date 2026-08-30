@@ -1,0 +1,59 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/room_crew_layout.gd" id="1_layout"]
+[ext_resource type="Texture2D" path="res://assets/sprites/interiors/rooms/standard/overlays/shield.png" id="2_art"]
+[ext_resource type="Script" path="res://scripts/room_layout_obstacle.gd" id="3_obstacle"]
+
+[node name="ShieldCrewLayout" type="Node2D"]
+script = ExtResource("1_layout")
+
+[node name="RoomArt" type="Sprite2D" parent="."]
+modulate = Color(1, 1, 1, 0.72)
+texture = ExtResource("2_art")
+
+[node name="Obstacles" type="Node2D" parent="."]
+
+[node name="ShieldMachinery" type="Polygon2D" parent="Obstacles"]
+color = Color(1, 0.24, 0.16, 0.18)
+polygon = PackedVector2Array(-22, -22, 22, -22, 22, 22, -22, 22)
+script = ExtResource("3_obstacle")
+
+[node name="ManningLocations" type="Node2D" parent="."]
+
+[node name="PortStation" type="Marker2D" parent="ManningLocations"]
+position = Vector2(-36, 0)
+rotation = 1.570796
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/PortStation"]
+position = Vector2(0, 12)
+
+[node name="StarboardStation" type="Marker2D" parent="ManningLocations"]
+position = Vector2(36, 0)
+rotation = -1.570796
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/StarboardStation"]
+position = Vector2(0, 12)
+
+[node name="IdleLocations" type="Node2D" parent="."]
+
+[node name="NorthWest" type="Marker2D" parent="IdleLocations"]
+position = Vector2(-50, -50)
+
+[node name="SouthEast" type="Marker2D" parent="IdleLocations"]
+position = Vector2(50, 50)
+
+[node name="DoorApproaches" type="Node2D" parent="."]
+
+[node name="North" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(0, -68)
+
+[node name="East" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(68, 0)
+
+[node name="South" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(0, 68)
+
+[node name="West" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(-68, 0)
+
+[node name="SpecialLocations" type="Node2D" parent="."]

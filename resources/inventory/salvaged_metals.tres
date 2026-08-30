@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/ship_inventory_entry_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+item_id = &"salvaged_metals"
+display_name = "SALVAGED METALS"
+description = "Unrefined wreckage intended for sale or processing rather than immediate shipboard use."
+storage_class = 1
+starting_quantity = 12
+volume_per_unit = 2.0
+

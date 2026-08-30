@@ -1,0 +1,276 @@
+[gd_resource type="Resource" script_class="ShipLayoutResource" format=3 uid="uid://brxdwpw07ovf0"]
+
+[ext_resource type="Script" uid="uid://cc5edgh2fy2y0" path="res://scripts/resources/ship_layout_resource.gd" id="1"]
+[ext_resource type="Script" uid="uid://cxoy45iru85el" path="res://scripts/resources/room_layout_data.gd" id="2"]
+[ext_resource type="Resource" uid="uid://ultmm7y007gq" path="res://resources/weapons/traverse_gun.tres" id="3_traverse"]
+
+[sub_resource type="Resource" id="TypeDockingStation"]
+script = ExtResource("2")
+room_id = &"type_docking_station"
+display_name = "DOCKING STATION"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS / TRANSFER"
+description = "Heavy exterior docking infrastructure for capital ships, cargo transfer, crew transfer, refit access, and future station services."
+grid_label = "DOCK"
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 180.0
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="StationOuterHull"]
+script = ExtResource("2")
+room_id = &"station_outer_hull"
+display_name = "ARMORED OUTER RING"
+effect_label = "STATION HULL"
+description = "Heavy armored outer ring giving the station a broad round silhouette."
+grid_rects = Array[Rect2i]([Rect2i(5, 1, 5, 1), Rect2i(15, 1, 5, 1), Rect2i(3, 3, 2, 2), Rect2i(20, 3, 2, 2), Rect2i(1, 5, 2, 5), Rect2i(22, 5, 2, 5), Rect2i(1, 15, 2, 5), Rect2i(22, 15, 2, 5), Rect2i(3, 20, 2, 2), Rect2i(20, 20, 2, 2), Rect2i(5, 23, 5, 1), Rect2i(15, 23, 5, 1)])
+color = Color(0.12, 0.15, 0.17, 1)
+maximum_health = 1000.0
+produces_output = false
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="StationServiceHull"]
+script = ExtResource("2")
+room_id = &"station_service_hull"
+display_name = "UNASSIGNED STATION SPACE"
+effect_label = "FUTURE STATION SERVICES"
+description = "Placeholder interior volume reserved for future station rooms such as bars, shops, markets, repair yards, customs, and crew services."
+grid_rects = Array[Rect2i]([Rect2i(7, 2, 3, 1), Rect2i(15, 2, 3, 1), Rect2i(5, 3, 6, 2), Rect2i(14, 3, 6, 2), Rect2i(3, 5, 5, 3), Rect2i(17, 5, 5, 3), Rect2i(2, 8, 3, 2), Rect2i(20, 8, 3, 2), Rect2i(5, 17, 5, 3), Rect2i(15, 17, 5, 3), Rect2i(3, 20, 8, 2), Rect2i(14, 20, 8, 2), Rect2i(7, 22, 3, 1), Rect2i(15, 22, 3, 1)])
+color = Color(0.16, 0.2, 0.22, 1)
+maximum_health = 900.0
+produces_output = false
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="StationCargoRing"]
+script = ExtResource("2")
+room_id = &"station_cargo_ring"
+display_name = "CARGO AND TRADE VAULTS"
+type_name = "CARGO"
+effect_label = "STATION STORAGE"
+description = "Bulk station storage reserved for future trade, salvage, and marketplace loops."
+grid_rects = Array[Rect2i]([Rect2i(1, 15, 4, 3), Rect2i(20, 15, 4, 3), Rect2i(1, 7, 4, 3), Rect2i(20, 7, 4, 3)])
+color = Color(0.24, 0.25, 0.19, 1)
+maximum_health = 420.0
+storage_role = "CARGO"
+storage_capacity_per_cell = 250.0
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="StationPower"]
+script = ExtResource("2")
+room_id = &"station_power_ring"
+display_name = "STATION POWER RING"
+type_name = "POWER"
+effect_label = "STATION POWER"
+description = "Heavy power infrastructure for the orbital station."
+grid_rects = Array[Rect2i]([Rect2i(8, 5, 9, 2), Rect2i(8, 18, 9, 2), Rect2i(5, 8, 2, 9), Rect2i(18, 8, 2, 9)])
+color = Color(0.42, 0.32, 0.1, 1)
+maximum_health = 650.0
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="StationOperations"]
+script = ExtResource("2")
+room_id = &"station_operations"
+display_name = "STATION OPERATIONS"
+type_name = "COMMAND"
+effect_label = "TRAFFIC CONTROL"
+description = "Command and traffic control for docking, station defense, and future station services."
+grid_rects = Array[Rect2i]([Rect2i(9, 9, 7, 7)])
+color = Color(0.1, 0.34, 0.4, 1)
+maximum_health = 520.0
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="StationNorthDock"]
+script = ExtResource("2")
+room_id = &"station_north_dock"
+display_name = "NORTH DOCKING ARM"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS"
+description = "Capital-ship docking hardware. Future ships will align and lock to this face."
+grid_label = "DOCK"
+grid_rects = Array[Rect2i]([Rect2i(10, 0, 5, 2), Rect2i(11, 2, 3, 3)])
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 260.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 0
+
+[sub_resource type="Resource" id="StationSouthDock"]
+script = ExtResource("2")
+room_id = &"station_south_dock"
+display_name = "SOUTH DOCKING ARM"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS"
+description = "Capital-ship docking hardware. Future ships will align and lock to this face."
+grid_label = "DOCK"
+grid_rects = Array[Rect2i]([Rect2i(11, 20, 3, 3), Rect2i(10, 23, 5, 2)])
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 260.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 2
+
+[sub_resource type="Resource" id="StationPortDock"]
+script = ExtResource("2")
+room_id = &"station_port_dock"
+display_name = "PORT DOCKING ARM"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS"
+description = "Capital-ship docking hardware. Future ships will align and lock to this face."
+grid_label = "DOCK"
+grid_rects = Array[Rect2i]([Rect2i(0, 10, 2, 5), Rect2i(2, 11, 3, 3)])
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 260.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 3
+
+[sub_resource type="Resource" id="StationStarboardDock"]
+script = ExtResource("2")
+room_id = &"station_starboard_dock"
+display_name = "STARBOARD DOCKING ARM"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS"
+description = "Capital-ship docking hardware. Future ships will align and lock to this face."
+grid_label = "DOCK"
+grid_rects = Array[Rect2i]([Rect2i(20, 11, 3, 3), Rect2i(23, 10, 2, 5)])
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 260.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 1
+
+[sub_resource type="Resource" id="StationNorthDefense"]
+script = ExtResource("2")
+room_id = &"station_north_defense"
+display_name = "NORTH DEFENSE BATTERY"
+type_name = "WEAPONS"
+effect_label = "POINT DEFENSE"
+description = "Station defensive guns covering the north approach."
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(7, 1, 2, 1), Rect2i(16, 1, 2, 1)])
+color = Color(0.4, 0.23, 0.11, 1)
+maximum_health = 140.0
+minimum_crew = 0
+optimal_crew = 0
+weapon_definition = ExtResource("3_traverse")
+module_facing_quarters = 0
+
+[sub_resource type="Resource" id="StationSouthDefense"]
+script = ExtResource("2")
+room_id = &"station_south_defense"
+display_name = "SOUTH DEFENSE BATTERY"
+type_name = "WEAPONS"
+effect_label = "POINT DEFENSE"
+description = "Station defensive guns covering the south approach."
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(7, 23, 2, 1), Rect2i(16, 23, 2, 1)])
+color = Color(0.4, 0.23, 0.11, 1)
+maximum_health = 140.0
+minimum_crew = 0
+optimal_crew = 0
+weapon_definition = ExtResource("3_traverse")
+module_facing_quarters = 2
+
+[sub_resource type="Resource" id="StationPortDefense"]
+script = ExtResource("2")
+room_id = &"station_port_defense"
+display_name = "PORT DEFENSE BATTERY"
+type_name = "WEAPONS"
+effect_label = "POINT DEFENSE"
+description = "Station defensive guns covering the port approach."
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(1, 7, 1, 2), Rect2i(1, 16, 1, 2)])
+color = Color(0.4, 0.23, 0.11, 1)
+maximum_health = 140.0
+minimum_crew = 0
+optimal_crew = 0
+weapon_definition = ExtResource("3_traverse")
+module_facing_quarters = 3
+
+[sub_resource type="Resource" id="StationStarboardDefense"]
+script = ExtResource("2")
+room_id = &"station_starboard_defense"
+display_name = "STARBOARD DEFENSE BATTERY"
+type_name = "WEAPONS"
+effect_label = "POINT DEFENSE"
+description = "Station defensive guns covering the starboard approach."
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(23, 7, 1, 2), Rect2i(23, 16, 1, 2)])
+color = Color(0.4, 0.23, 0.11, 1)
+maximum_health = 140.0
+minimum_crew = 0
+optimal_crew = 0
+weapon_definition = ExtResource("3_traverse")
+module_facing_quarters = 1
+
+[sub_resource type="Resource" id="StationNorthHangar"]
+script = ExtResource("2")
+room_id = &"station_north_hangar"
+display_name = "NORTH PATROL HANGAR"
+type_name = "HANGAR"
+effect_label = "PATROL CRAFT"
+description = "Small patrol hangar for station fighter defense."
+grid_label = "HNG"
+grid_rects = Array[Rect2i]([Rect2i(11, 5, 3, 1)])
+color = Color(0.11, 0.34, 0.35, 1)
+maximum_health = 160.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 0
+
+[sub_resource type="Resource" id="StationSouthHangar"]
+script = ExtResource("2")
+room_id = &"station_south_hangar"
+display_name = "SOUTH PATROL HANGAR"
+type_name = "HANGAR"
+effect_label = "PATROL CRAFT"
+description = "Small patrol hangar for station fighter defense."
+grid_label = "HNG"
+grid_rects = Array[Rect2i]([Rect2i(11, 19, 3, 1)])
+color = Color(0.11, 0.34, 0.35, 1)
+maximum_health = 160.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 2
+
+[sub_resource type="Resource" id="StationPortHangar"]
+script = ExtResource("2")
+room_id = &"station_port_hangar"
+display_name = "PORT PATROL HANGAR"
+type_name = "HANGAR"
+effect_label = "PATROL CRAFT"
+description = "Small patrol hangar for station fighter defense."
+grid_label = "HNG"
+grid_rects = Array[Rect2i]([Rect2i(5, 11, 1, 3)])
+color = Color(0.11, 0.34, 0.35, 1)
+maximum_health = 160.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 3
+
+[sub_resource type="Resource" id="StationStarboardHangar"]
+script = ExtResource("2")
+room_id = &"station_starboard_hangar"
+display_name = "STARBOARD PATROL HANGAR"
+type_name = "HANGAR"
+effect_label = "PATROL CRAFT"
+description = "Small patrol hangar for station fighter defense."
+grid_label = "HNG"
+grid_rects = Array[Rect2i]([Rect2i(19, 11, 1, 3)])
+color = Color(0.11, 0.34, 0.35, 1)
+maximum_health = 160.0
+minimum_crew = 0
+optimal_crew = 0
+module_facing_quarters = 1
+
+[resource]
+script = ExtResource("1")
+columns = 25
+rows = 25
+room_types = Array[Resource]([SubResource("TypeDockingStation")])
+rooms = Array[Resource]([SubResource("StationOuterHull"), SubResource("StationServiceHull"), SubResource("StationCargoRing"), SubResource("StationPower"), SubResource("StationOperations"), SubResource("StationNorthDock"), SubResource("StationSouthDock"), SubResource("StationPortDock"), SubResource("StationStarboardDock"), SubResource("StationNorthDefense"), SubResource("StationSouthDefense"), SubResource("StationPortDefense"), SubResource("StationStarboardDefense"), SubResource("StationNorthHangar"), SubResource("StationSouthHangar"), SubResource("StationPortHangar"), SubResource("StationStarboardHangar")])

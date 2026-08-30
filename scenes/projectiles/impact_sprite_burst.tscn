@@ -1,0 +1,43 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://scripts/impact_sprite_burst.gd" id="1_script"]
+[ext_resource type="Texture2D" path="res://assets/sprites/effects/impacts/impact_large.png" id="2_sheet"]
+
+[sub_resource type="AtlasTexture" id="Frame0"]
+atlas = ExtResource("2_sheet")
+region = Rect2(0, 0, 48, 48)
+[sub_resource type="AtlasTexture" id="Frame1"]
+atlas = ExtResource("2_sheet")
+region = Rect2(48, 0, 48, 48)
+[sub_resource type="AtlasTexture" id="Frame2"]
+atlas = ExtResource("2_sheet")
+region = Rect2(96, 0, 48, 48)
+[sub_resource type="AtlasTexture" id="Frame3"]
+atlas = ExtResource("2_sheet")
+region = Rect2(144, 0, 48, 48)
+[sub_resource type="AtlasTexture" id="Frame4"]
+atlas = ExtResource("2_sheet")
+region = Rect2(192, 0, 48, 48)
+[sub_resource type="AtlasTexture" id="Frame5"]
+atlas = ExtResource("2_sheet")
+region = Rect2(240, 0, 48, 48)
+[sub_resource type="AtlasTexture" id="Frame6"]
+atlas = ExtResource("2_sheet")
+region = Rect2(288, 0, 48, 48)
+
+[sub_resource type="SpriteFrames" id="SpriteFrames_impact"]
+animations = [{
+"frames": [{"duration": 1.0, "texture": SubResource("Frame0")}, {"duration": 1.0, "texture": SubResource("Frame1")}, {"duration": 1.0, "texture": SubResource("Frame2")}, {"duration": 1.0, "texture": SubResource("Frame3")}, {"duration": 1.0, "texture": SubResource("Frame4")}, {"duration": 1.0, "texture": SubResource("Frame5")}, {"duration": 1.0, "texture": SubResource("Frame6")}],
+"loop": false,
+"name": &"impact",
+"speed": 18.0
+}]
+
+[node name="ImpactSpriteBurst" type="Node2D"]
+script = ExtResource("1_script")
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+texture_filter = 1
+scale = Vector2(0.38, 0.38)
+sprite_frames = SubResource("SpriteFrames_impact")
+animation = &"impact"

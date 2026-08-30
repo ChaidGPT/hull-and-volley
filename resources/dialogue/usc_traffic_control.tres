@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/dialogue_profile_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"USC_TRAFFIC_CONTROL"
+speaker_name = "LT. MARA VOSS"
+speaker_title = "UNITED SYSTEMS TRAFFIC CONTROL"
+portrait_seed = 110
+portrait_color = Color(0.28, 0.82, 1, 1)
+allied_greeting = "Command vessel recognized. Your traffic priority has been elevated."
+friendly_greeting = "Your transponder checks clean. Good to have a reliable captain in-system."
+neutral_greeting = "United Systems traffic control. Your transponder is logged. State your business."
+suspicious_greeting = "Your signal carries active annotations. Keep this exchange procedural."
+hostile_greeting = "Your vessel is operating under a United Systems warrant. Docking and station services are denied."
+identity_text = "Lieutenant Mara Voss, United Systems Traffic Control. This channel coordinates protected lanes, docking clamps, and local security response."
+remote_services_text = "The station directory is available over comms. Stores, repair crews, personnel transfer, and drydock controls require your vessel to be physically berthed."
+

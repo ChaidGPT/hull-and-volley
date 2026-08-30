@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/faction_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+faction_id = &"CHARTERED_COMBINE"
+display_name = "CHARTERED COMBINE"
+short_name = "COMBINE"
+description = "A web of mining syndicates, shipping combines, licensed trade hubs, and private security contractors held together by interlocking charters."
+signal_color = Color(1, 0.69, 0.22, 1)
+insignia_glyph = "▰"
+starting_reputation = 0.0
+diplomatic_relations = {
+&"FREE_SYSTEMS": -0.25,
+&"UNITED_SYSTEMS": 0.45
+}
+ship_design_language = "Bulky modular cargo frames, industrial machinery, drone bays, oversized reactors, external utility grids, and valuable exposed production systems."
+favored_grid_types = PackedStringArray("REACTOR", "ENGINEERING", "HANGAR", "UNASSIGNED")
+encounter_tags = PackedStringArray("CORPORATE", "MINING", "TRADE", "PRIVATE_SECURITY")

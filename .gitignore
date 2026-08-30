@@ -1,0 +1,21 @@
+# Godot-generated editor and import cache.
+.godot/
+
+# Local Codex review and scratch data.
+.codex_tmp/
+.codex-tmp/
+.codex_video_review/
+
+# Platform and editor noise.
+.DS_Store
+Thumbs.db
+desktop.ini
+*.tmp
+*.bak
+*~
+
+# Local exports should be published as releases, not committed as source.
+/build/
+/builds/
+/export/
+/exports/

@@ -1,0 +1,292 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://scripts/crew_view.gd" id="1_camera"]
+[ext_resource type="Script" path="res://scripts/crew_deck.gd" id="2_deck"]
+[ext_resource type="Resource" path="res://resources/starting_ship_layout.tres" id="3_layout"]
+[ext_resource type="Script" path="res://scripts/crt_context_panel.gd" id="4_crt"]
+[ext_resource type="Script" path="res://scripts/travel_starfield.gd" id="5_travel_stars"]
+
+[sub_resource type="StyleBoxFlat" id="HudStyle"]
+bg_color = Color(0.045, 0.03, 0.06, 0.94)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.42, 0.24, 0.52, 1)
+
+[node name="CrewView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+clip_contents = true
+script = ExtResource("1_camera")
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.012, 0.015, 0.018, 1)
+mouse_filter = 2
+
+[node name="TravelStarfield" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_travel_stars")
+
+[node name="World" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(2176, 3712)
+layout_mode = 0
+offset_right = 2176.0
+offset_bottom = 3712.0
+mouse_filter = 2
+script = ExtResource("2_deck")
+ship_layout = ExtResource("3_layout")
+
+[node name="Hud" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 322.0
+offset_bottom = 112.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("4_crt")
+
+[node name="Margin" type="MarginContainer" parent="Hud"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 9
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 9
+
+[node name="Readout" type="VBoxContainer" parent="Hud/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="Title" type="Label" parent="Hud/Margin/Readout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.86, 0.64, 0.94, 1)
+theme_override_font_sizes/font_size = 15
+text = "CREW DECK CAMERA"
+
+[node name="Controls" type="Label" parent="Hud/Margin/Readout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.44, 0.67, 1)
+theme_override_font_sizes/font_size = 11
+text = "PAN: ARROWS / EDGES / MIDDLE DRAG"
+
+[node name="Status" type="Label" parent="Hud/Margin/Readout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.44, 0.67, 1)
+theme_override_font_sizes/font_size = 11
+text = "PERSONNEL: NOT YET DEPLOYED"
+
+[node name="DoorControls" type="HBoxContainer" parent="Hud/Margin/Readout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="DoorToggleButton" type="Button" parent="Hud/Margin/Readout/DoorControls"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "OPEN"
+tooltip_text = "CLICK • TOGGLE DOOR"
+
+[node name="DoorLockButton" type="Button" parent="Hud/Margin/Readout/DoorControls"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "LOCK"
+tooltip_text = "CLICK • LOCK DOOR"
+
+[node name="CrewControls" type="VBoxContainer" parent="Hud/Margin/Readout"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="CrewName" type="Label" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.96, 0.86, 1)
+theme_override_font_sizes/font_size = 15
+text = "CREW MEMBER"
+
+[node name="CrewAssignment" type="Label" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.64, 0.55, 0.7, 1)
+theme_override_font_sizes/font_size = 10
+text = "ASSIGNMENT • WORKING"
+
+[node name="CrewVitals" type="Label" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.76, 0.68, 0.8, 1)
+theme_override_font_sizes/font_size = 10
+text = "HEALTH • 100%"
+
+[node name="MoraleLabel" type="Label" parent="Hud/Margin/Readout/CrewControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.44, 0.67, 1)
+theme_override_font_sizes/font_size = 9
+text = "MORALE"
+
+[node name="CrewMoraleBar" type="ProgressBar" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 8)
+layout_mode = 2
+mouse_filter = 2
+value = 75.0
+show_percentage = false
+
+[node name="CrewStats" type="Label" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.82, 0.76, 1)
+theme_override_font_sizes/font_size = 10
+text = "OPERATIONS 5.0 • ENGINEERING 5.0\nCOMBAT 5.0 • MEDICAL 5.0"
+
+[node name="EquipmentTitle" type="Label" parent="Hud/Margin/Readout/CrewControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.44, 0.67, 1)
+theme_override_font_sizes/font_size = 9
+text = "EQUIPMENT"
+
+[node name="EquipmentSlotList" type="HBoxContainer" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="ReleaseCrewCameraButton" type="Button" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "RELEASE CAMERA"
+tooltip_text = "CLICK • STOP FOLLOWING"
+
+[node name="UnassignCrewButton" type="Button" parent="Hud/Margin/Readout/CrewControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "REMOVE ASSIGNMENT"
+tooltip_text = "CLICK • RELEASE"
+
+[node name="RosterButton" type="Button" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -162.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 52.0
+grow_horizontal = 0
+toggle_mode = true
+text = "CREW ROSTER"
+tooltip_text = "CLICK • OPEN ROSTER"
+
+[node name="RosterPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -370.0
+offset_top = 62.0
+offset_right = -20.0
+offset_bottom = 560.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("4_crt")
+
+[node name="Margin" type="MarginContainer" parent="RosterPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Content" type="VBoxContainer" parent="RosterPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="RosterPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.86, 0.64, 0.94, 1)
+theme_override_font_sizes/font_size = 17
+text = "SHIP CREW ROSTER"
+
+[node name="Hint" type="Label" parent="RosterPanel/Margin/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.54, 0.78, 0.74, 1)
+theme_override_font_sizes/font_size = 10
+text = "SELECT CREW, THEN CLICK A ROOM TO ASSIGN"
+
+[node name="Search" type="LineEdit" parent="RosterPanel/Margin/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "FILTER BY NAME OR ROOM..."
+tooltip_text = "TYPE • FILTER CREW"
+
+[node name="Filters" type="HBoxContainer" parent="RosterPanel/Margin/Content"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="RosterFilter" type="OptionButton" parent="RosterPanel/Margin/Content/Filters"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "FILTER • ASSIGNMENT"
+
+[node name="RosterSort" type="OptionButton" parent="RosterPanel/Margin/Content/Filters"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+tooltip_text = "SORT • ROSTER"
+
+[node name="Scroll" type="ScrollContainer" parent="RosterPanel/Margin/Content"]
+custom_minimum_size = Vector2(0, 340)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RosterList" type="VBoxContainer" parent="RosterPanel/Margin/Content/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 4
+
+[node name="PositionLabel" type="Label" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -278.0
+offset_top = -48.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.48, 0.34, 0.55, 1)
+theme_override_font_sizes/font_size = 11
+text = "CAMERA X 0000 Y 0000 • 1.00x"
+horizontal_alignment = 2

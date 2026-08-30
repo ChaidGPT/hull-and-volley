@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/neutral_encounter_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+encounter_id = &"SHIPPING_LANE"
+display_name = "CIVILIAN SHIPPING LANE"
+description = "Freighters travel between navigation beacons, pause at transfer points, and continue through the sector."
+selection_weight = 4.0
+minimum_contacts = 2
+maximum_contacts = 7
+sector_tags = PackedStringArray("CIVILIAN", "TRADE", "TRANSIT")
+faction_ids = PackedStringArray("UNITED_SYSTEMS", "CHARTERED_COMBINE")
+creates_shipping_lane = true

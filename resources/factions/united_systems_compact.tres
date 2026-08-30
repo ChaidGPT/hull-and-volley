@@ -1,0 +1,20 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/faction_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+faction_id = &"UNITED_SYSTEMS"
+display_name = "UNITED SYSTEMS COMPACT"
+short_name = "USC"
+description = "The largest recognized interstellar government: customs offices, naval patrols, regulated stations, and protected civilian shipping."
+signal_color = Color(0.28, 0.82, 1, 1)
+insignia_glyph = "⬡"
+starting_reputation = 0.0
+diplomatic_relations = {
+&"CHARTERED_COMBINE": 0.45,
+&"FREE_SYSTEMS": -0.9
+}
+ship_design_language = "Symmetrical standardized hulls, armored command spines, disciplined weapon arcs, directional shielding, point defense, and redundant systems."
+favored_grid_types = PackedStringArray("BRIDGE", "SHIELD_GENERATOR", "SECURITY", "WEAPONS")
+encounter_tags = PackedStringArray("GOVERNMENT", "NAVY", "CUSTOMS", "PROTECTED_LANE")

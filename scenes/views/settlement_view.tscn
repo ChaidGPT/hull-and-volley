@@ -1,0 +1,1328 @@
+[gd_scene load_steps=12 format=3]
+
+[ext_resource type="Script" path="res://scripts/settlement_grid.gd" id="1_grid"]
+[ext_resource type="Script" path="res://scripts/view_zoom.gd" id="2_zoom"]
+[ext_resource type="Script" path="res://scripts/settlement_view.gd" id="3_view"]
+[ext_resource type="Resource" path="res://resources/starting_ship_layout.tres" id="4_layout"]
+[ext_resource type="Script" path="res://scripts/settlement_callout.gd" id="5_callout"]
+[ext_resource type="Script" path="res://scripts/crt_context_panel.gd" id="6_crt"]
+[ext_resource type="Script" path="res://scripts/travel_starfield.gd" id="7_travel_stars"]
+[ext_resource type="Script" path="res://scripts/arcade_resource_meter.gd" id="8_resource_meter"]
+[ext_resource type="Script" path="res://scripts/room_staffing_meter.gd" id="9_staffing_meter"]
+
+[sub_resource type="StyleBoxFlat" id="HudStyle"]
+bg_color = Color(0.065, 0.055, 0.03, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.46, 0.34, 0.14, 1)
+
+[sub_resource type="StyleBoxFlat" id="HealthBackground"]
+bg_color = Color(0.025, 0.035, 0.032, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.32, 0.28, 1)
+
+[sub_resource type="StyleBoxFlat" id="HealthFill"]
+bg_color = Color(0.3, 0.72, 0.49, 1)
+
+[node name="SettlementView" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("3_view")
+
+[node name="ZoomController" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2_zoom")
+target_path = NodePath("../Center/SettlementGrid")
+zoom_label_path = NodePath("../DeckReadout")
+zoom_label_prefix = "DECK ZOOM"
+minimum_zoom = 0.55
+maximum_zoom = 2.5
+
+[node name="Backdrop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.025, 0.027, 0.024, 1)
+mouse_filter = 2
+
+[node name="TravelStarfield" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("7_travel_stars")
+
+[node name="Center" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="SettlementGrid" type="Control" parent="Center"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(272, 512)
+layout_mode = 2
+mouse_filter = 0
+script = ExtResource("1_grid")
+ship_layout = ExtResource("4_layout")
+
+[node name="RoomCallout" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5_callout")
+
+[node name="RoomLabel" type="Label" parent="RoomCallout"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_right = 180.0
+offset_bottom = 24.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.72, 0.94, 0.93, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.9)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 12
+text = "ROOM NAME"
+vertical_alignment = 1
+
+[node name="DeckPowerMeter" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(286, 54)
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 306.0
+offset_bottom = 74.0
+mouse_filter = 0
+script = ExtResource("8_resource_meter")
+
+[node name="DeckCrewMeter" type="Control" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(286, 54)
+layout_mode = 1
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 20.0
+offset_top = -74.0
+offset_right = 306.0
+offset_bottom = -20.0
+grow_vertical = 0
+mouse_filter = 0
+script = ExtResource("8_resource_meter")
+meter_kind = 1
+
+[node name="DeveloperControls" type="VBoxContainer" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 20.0
+offset_top = 82.0
+offset_right = 306.0
+offset_bottom = 190.0
+
+[node name="GridStatus" type="Label" parent="DeveloperControls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "CURRENT HULL: 6 x 12"
+
+[node name="BuildStatus" type="Label" parent="DeveloperControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.62, 0.5, 0.28, 1)
+theme_override_font_sizes/font_size = 11
+text = "BUILD MODE: EDITOR AVAILABLE"
+
+[node name="EditorButton" type="Button" parent="DeveloperControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+toggle_mode = true
+text = "OPEN SHIP EDITOR"
+
+[node name="DamageLabButton" type="Button" parent="DeveloperControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 28)
+layout_mode = 2
+toggle_mode = true
+text = "STRUCTURAL TEST"
+tooltip_text = "CLICK • TEST WALL DAMAGE"
+
+[node name="SelectedRoomPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(314, 0)
+clip_contents = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -334.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 355.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="Margin" type="MarginContainer" parent="SelectedRoomPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Scroll" type="ScrollContainer" parent="SelectedRoomPanel/Margin"]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 0
+
+[node name="Details" type="VBoxContainer" parent="SelectedRoomPanel/Margin/Scroll"]
+custom_minimum_size = Vector2(286, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 7
+
+[node name="PanelTitle" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.47, 0.25, 1)
+theme_override_font_sizes/font_size = 10
+text = "SELECTED COMPARTMENT"
+
+[node name="SelectedRoomName" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.95, 0.76, 0.38, 1)
+theme_override_font_sizes/font_size = 16
+text = "BRIDGE"
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="SelectedRoomType" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 11
+text = "TYPE • COMMAND"
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="SelectedRoomStatusRow" type="HBoxContainer" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="SelectedRoomStatusLamp" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/SelectedRoomStatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+mouse_filter = 0
+mouse_default_cursor_shape = 2
+theme_override_colors/font_color = Color(0.34, 1, 0.62, 0.95)
+theme_override_font_sizes/font_size = 17
+text = "●"
+tooltip_text = "COMPARTMENT STATUS: NOMINAL"
+
+[node name="SelectedRoomStatusText" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/SelectedRoomStatusRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 0
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 11
+text = "STATUS • NOMINAL"
+tooltip_text = "COMPARTMENT STATUS: NOMINAL"
+
+[node name="SelectedRoomHealth" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 11
+text = "STRUCTURE • 080 / 080  (100%)"
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="SelectedRoomHealthBar" type="ProgressBar" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 14)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("HealthBackground")
+theme_override_styles/fill = SubResource("HealthFill")
+value = 100.0
+show_percentage = false
+
+[node name="SelectedRoomOutput" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 11
+text = "SYSTEM OUTPUT • 100%"
+autowrap_mode = 2
+
+[node name="SystemDetailButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "SYSTEM DETAIL >"
+tooltip_text = "CLICK • OPEN DAMAGE CONTROL"
+
+[node name="SelectedRoomOxygen" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.42, 0.82, 0.88, 1)
+theme_override_font_sizes/font_size = 11
+text = "ATMOSPHERE • 100%"
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="SelectedRoomOxygenBar" type="ProgressBar" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 7)
+layout_mode = 2
+mouse_filter = 2
+theme_override_styles/background = SubResource("HealthBackground")
+theme_override_styles/fill = SubResource("HealthFill")
+value = 100.0
+show_percentage = false
+
+[node name="SelectedRoomCrew" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 11
+text = "CREW • NOT ASSIGNED"
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="StaffingConfiguration" type="VBoxContainer" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(286, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/StaffingConfiguration"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.66, 0.22, 1)
+theme_override_font_sizes/font_size = 12
+text = "CREW ORDERS"
+
+[node name="RoomStaffingMeter" type="Control" parent="SelectedRoomPanel/Margin/Scroll/Details/StaffingConfiguration"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 62)
+layout_mode = 2
+mouse_filter = 0
+script = ExtResource("9_staffing_meter")
+
+[node name="AssignedCrewList" type="VBoxContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/StaffingConfiguration"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="NoAssignedCrewLabel" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/StaffingConfiguration/AssignedCrewList"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.86, 0.78, 1)
+theme_override_font_sizes/font_size = 10
+text = "NO CREW ASSIGNED"
+
+[node name="AutoAssignCrewButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/StaffingConfiguration"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+text = "CREW NET • AUTO-ROUTE  >"
+tooltip_text = "CREW BALANCED AUTOMATICALLY\nCLICK • PRIORITY HOLD"
+
+[node name="OpenDispatchButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/StaffingConfiguration"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "CHOOSE CREW >"
+tooltip_text = "CLICK • SET CREW PRIORITY"
+
+[node name="DamageControlStatusButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.56, 0.22, 1)
+text = "⚠ STATUS • ATTENTION REQUIRED"
+tooltip_text = "CLICK • OPEN DAMAGE CONTROL"
+
+[node name="SystemDetailPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -650.0
+offset_top = 20.0
+offset_right = -350.0
+offset_bottom = 285.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="CloseSystemDetailButton" type="Button" parent="SystemDetailPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -30.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = 30.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 12
+text = "X"
+tooltip_text = "CLICK • CLOSE"
+
+[node name="Margin" type="MarginContainer" parent="SystemDetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Readout" type="VBoxContainer" parent="SystemDetailPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="SystemDetailPanel/Margin/Readout"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.82, 0.88, 1)
+theme_override_font_sizes/font_size = 10
+text = "SYSTEM DIAGNOSTIC"
+
+[node name="SystemDetailRoomName" type="Label" parent="SystemDetailPanel/Margin/Readout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.38, 1)
+theme_override_font_sizes/font_size = 15
+text = "COMPARTMENT"
+clip_text = true
+text_overrun_behavior = 3
+
+[node name="SystemDetailStatus" type="Label" parent="SystemDetailPanel/Margin/Readout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.94, 0.82, 1)
+theme_override_font_sizes/font_size = 11
+text = "STATUS • NOMINAL"
+autowrap_mode = 2
+
+[node name="SystemDetailOutput" type="Label" parent="SystemDetailPanel/Margin/Readout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 10
+text = "OUTPUT • 100%"
+autowrap_mode = 2
+
+[node name="SystemDetailCrew" type="Label" parent="SystemDetailPanel/Margin/Readout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.86, 0.78, 1)
+theme_override_font_sizes/font_size = 10
+text = "CREW • NONE"
+autowrap_mode = 2
+
+[node name="SystemDetailAction" type="Label" parent="SystemDetailPanel/Margin/Readout"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.78, 0.54, 0.28, 1)
+theme_override_font_sizes/font_size = 10
+text = "ACTION • MONITOR"
+autowrap_mode = 2
+
+[node name="ManualDispatchPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -650.0
+offset_top = 300.0
+offset_right = -350.0
+offset_bottom = 445.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="CloseDispatchButton" type="Button" parent="ManualDispatchPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -30.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = 30.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 12
+text = "X"
+tooltip_text = "CLICK • CLOSE"
+
+[node name="Margin" type="MarginContainer" parent="ManualDispatchPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Console" type="VBoxContainer" parent="ManualDispatchPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="DispatchTitle" type="Label" parent="ManualDispatchPanel/Margin/Console"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.42, 0.82, 0.88, 1)
+theme_override_font_sizes/font_size = 10
+text = "DISPATCH CREW"
+
+[node name="Instruction" type="Label" parent="ManualDispatchPanel/Margin/Console"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 10
+text = "SELECT A CREWMEMBER • ISSUE MOVE ORDER"
+
+[node name="ManualRow" type="HBoxContainer" parent="ManualDispatchPanel/Margin/Console"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CrewSelector" type="OptionButton" parent="ManualDispatchPanel/Margin/Console/ManualRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+fit_to_longest_item = false
+tooltip_text = "CLICK • SELECT CREW"
+
+[node name="AssignCrewButton" type="Button" parent="ManualDispatchPanel/Margin/Console/ManualRow"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "DEPLOY"
+tooltip_text = "CLICK • SEND TO ROOM"
+
+[node name="DamageControlPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -650.0
+offset_top = 20.0
+offset_right = -350.0
+offset_bottom = 255.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="Margin" type="MarginContainer" parent="DamageControlPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Controls" type="VBoxContainer" parent="DamageControlPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="DamageControlPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.63, 0.28, 1)
+theme_override_font_sizes/font_size = 16
+text = "COMPARTMENT STATUS"
+
+[node name="DamageControlStatus" type="Label" parent="DamageControlPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.88, 0.55, 0.28, 1)
+theme_override_font_sizes/font_size = 10
+text = "DAMAGE DETECTED"
+autowrap_mode = 2
+
+[node name="Actions" type="HBoxContainer" parent="DamageControlPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="OrderRoomRepairButton" type="Button" parent="DamageControlPanel/Margin/Controls/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "REPAIR ROOM"
+tooltip_text = "CLICK • REPAIR SYSTEM"
+
+[node name="OrderBreachRepairButton" type="Button" parent="DamageControlPanel/Margin/Controls/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "SEAL WALLS"
+tooltip_text = "CLICK • REPAIR ROOM WALLS"
+
+[node name="HangarFacingConfiguration" type="VBoxContainer" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.47, 0.25, 1)
+theme_override_font_sizes/font_size = 10
+text = "DEPLOYMENT DIRECTION"
+
+[node name="HangarFacingHint" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.28, 0.78, 0.8, 0.85)
+theme_override_font_sizes/font_size = 9
+text = "ILLUMINATED VECTORS HAVE CLEAR LAUNCH SPACE"
+horizontal_alignment = 1
+
+[node name="HangarFacingReadout" type="PanelContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("HealthBackground")
+
+[node name="Margin" type="MarginContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingReadout"]
+layout_mode = 2
+theme_override_constants/margin_left = 9
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 9
+theme_override_constants/margin_bottom = 7
+
+[node name="HangarFacingReadoutLabel" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingReadout/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.94, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "LAUNCH VECTOR • FORWARD"
+
+[node name="HangarFacingButtons" type="GridContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+columns = 3
+theme_override_constants/separation = 4
+
+[node name="TopLeftSpacer" type="Control" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+
+[node name="Forward" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+toggle_mode = true
+flat = true
+theme_override_colors/font_color = Color(0.3, 0.95, 1, 1)
+theme_override_colors/font_disabled_color = Color(0.22, 0.27, 0.28, 0.55)
+theme_override_font_sizes/font_size = 20
+text = "▲"
+tooltip_text = "DEPLOY • BOW"
+
+[node name="TopRightSpacer" type="Control" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+
+[node name="Port" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+toggle_mode = true
+flat = true
+theme_override_colors/font_color = Color(0.3, 0.95, 1, 1)
+theme_override_colors/font_disabled_color = Color(0.22, 0.27, 0.28, 0.55)
+theme_override_font_sizes/font_size = 20
+text = "◀"
+tooltip_text = "DEPLOY • PORT"
+
+[node name="Bay" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+custom_minimum_size = Vector2(48, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.66, 0.24, 1)
+theme_override_font_sizes/font_size = 10
+text = "╔BAY╗"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Starboard" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+toggle_mode = true
+flat = true
+theme_override_colors/font_color = Color(0.3, 0.95, 1, 1)
+theme_override_colors/font_disabled_color = Color(0.22, 0.27, 0.28, 0.55)
+theme_override_font_sizes/font_size = 20
+text = "▶"
+tooltip_text = "DEPLOY • STARBOARD"
+
+[node name="BottomLeftSpacer" type="Control" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+
+[node name="Rear" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+toggle_mode = true
+flat = true
+theme_override_colors/font_color = Color(0.3, 0.95, 1, 1)
+theme_override_colors/font_disabled_color = Color(0.22, 0.27, 0.28, 0.55)
+theme_override_font_sizes/font_size = 20
+text = "▼"
+tooltip_text = "DEPLOY • AFT"
+
+[node name="BottomRightSpacer" type="Control" parent="SelectedRoomPanel/Margin/Scroll/Details/HangarFacingConfiguration/HangarFacingButtons"]
+custom_minimum_size = Vector2(34, 34)
+layout_mode = 2
+
+[node name="WeaponConfiguration" type="VBoxContainer" parent="SelectedRoomPanel/Margin/Scroll/Details"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.47, 0.25, 1)
+theme_override_font_sizes/font_size = 10
+text = "WEAPON TYPE"
+
+[node name="WeaponReadout" type="PanelContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("HealthBackground")
+
+[node name="Margin" type="MarginContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration/WeaponReadout"]
+layout_mode = 2
+theme_override_constants/margin_left = 9
+theme_override_constants/margin_top = 7
+theme_override_constants/margin_right = 9
+theme_override_constants/margin_bottom = 7
+
+[node name="WeaponReadoutLabel" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration/WeaponReadout/Margin"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.94, 0.82, 1)
+theme_override_font_sizes/font_size = 13
+text = "EXPLOSIVE CANNON"
+
+[node name="FireDirectiveTitle" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.82, 0.78, 1)
+theme_override_font_sizes/font_size = 9
+text = "FIRE DIRECTIVE • HARDPOINT 1"
+
+[node name="FireDirectiveButtons" type="HBoxContainer" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 3
+
+[node name="LinkedFireButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration/FireDirectiveButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+toggle_mode = true
+text = "LINKED"
+tooltip_text = "LINKED • FIRE AT WILL; PLAYER TRIGGER TAKES CONTROL DURING MANUAL FIRE"
+
+[node name="TriggerFireButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration/FireDirectiveButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+toggle_mode = true
+text = "TRIGGER"
+tooltip_text = "TRIGGER • HOLD FIRE UNTIL COMMANDED IN MANUAL FIRE"
+
+[node name="SentryFireButton" type="Button" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration/FireDirectiveButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+focus_mode = 0
+toggle_mode = true
+text = "SENTRY"
+tooltip_text = "SENTRY • FIRE AT WILL; IGNORE PLAYER TRIGGER"
+
+[node name="WeaponTypeSelector" type="OptionButton" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="WeaponStats" type="Label" parent="SelectedRoomPanel/Margin/Scroll/Details/WeaponConfiguration"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.63, 0.43, 1)
+theme_override_font_sizes/font_size = 10
+text = "RANGE 0000 • DAMAGE 00\nARC +/- 00 DEG • RELOAD 0.0s"
+
+[node name="CrewActionPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -650.0
+offset_top = 210.0
+offset_right = -350.0
+offset_bottom = 405.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="CloseCrewActionButton" type="Button" parent="CrewActionPanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(24, 24)
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -30.0
+offset_top = 6.0
+offset_right = -6.0
+offset_bottom = 30.0
+grow_horizontal = 0
+theme_override_font_sizes/font_size = 12
+text = "X"
+tooltip_text = "CLICK • CLOSE"
+
+[node name="Margin" type="MarginContainer" parent="CrewActionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 30
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 10
+
+[node name="Actions" type="VBoxContainer" parent="CrewActionPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="CrewActionPanel/Margin/Actions"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.47, 0.25, 1)
+theme_override_font_sizes/font_size = 10
+text = "CREW ASSIGNMENT"
+
+[node name="CrewActionName" type="Label" parent="CrewActionPanel/Margin/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.94, 0.84, 1)
+theme_override_font_sizes/font_size = 16
+text = "CREW MEMBER"
+
+[node name="CrewActionStatus" type="Label" parent="CrewActionPanel/Margin/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 10
+text = "AT STATION"
+
+[node name="MoraleLabel" type="Label" parent="CrewActionPanel/Margin/Actions"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.47, 0.25, 1)
+theme_override_font_sizes/font_size = 9
+text = "MORALE"
+
+[node name="CrewActionMoraleBar" type="ProgressBar" parent="CrewActionPanel/Margin/Actions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 7)
+layout_mode = 2
+mouse_filter = 2
+value = 75.0
+show_percentage = false
+
+[node name="ManualPickCrewButton" type="Button" parent="CrewActionPanel/Margin/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "SELECT IN MANUAL PICKER"
+tooltip_text = "CLICK • SELECT"
+
+[node name="UnassignRoomCrewButton" type="Button" parent="CrewActionPanel/Margin/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "UNASSIGN FROM ROOM"
+tooltip_text = "CLICK • RELEASE"
+
+[node name="DamageLabPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -334.0
+offset_top = 120.0
+offset_right = -20.0
+offset_bottom = 500.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="Margin" type="MarginContainer" parent="DamageLabPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Controls" type="VBoxContainer" parent="DamageLabPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="Title" type="Label" parent="DamageLabPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.38, 1)
+theme_override_font_sizes/font_size = 16
+text = "STRUCTURAL TEST"
+
+[node name="Instruction" type="Label" parent="DamageLabPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.82, 0.84, 1)
+theme_override_font_sizes/font_size = 10
+text = "SELECT A WALL SEGMENT ON THE SHIP"
+autowrap_mode = 2
+
+[node name="DamageLabStatus" type="Label" parent="DamageLabPanel/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.64, 0.48, 1)
+theme_override_font_sizes/font_size = 10
+text = "NO WALL SELECTED"
+autowrap_mode = 2
+
+[node name="DamageRow" type="HBoxContainer" parent="DamageLabPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="LightDamageButton" type="Button" parent="DamageLabPanel/Margin/Controls/DamageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "LIGHT"
+tooltip_text = "CLICK • LIGHT DAMAGE"
+
+[node name="HeavyDamageButton" type="Button" parent="DamageLabPanel/Margin/Controls/DamageRow"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "HEAVY"
+tooltip_text = "CLICK • HEAVY DAMAGE"
+
+[node name="BreachWallButton" type="Button" parent="DamageLabPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "INSTANT BREACH"
+tooltip_text = "CLICK • BREACH WALL"
+
+[node name="PenetrationTestButton" type="Button" parent="DamageLabPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "FIRE PENETRATING TEST SHOT"
+tooltip_text = "CLICK • TRACE PENETRATION"
+
+[node name="RepairWallButton" type="Button" parent="DamageLabPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "REPAIR SELECTED WALL"
+tooltip_text = "CLICK • REPAIR + SEAL"
+
+[node name="RestoreAtmosphereButton" type="Button" parent="DamageLabPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "RESTORE ATMOSPHERE"
+tooltip_text = "CLICK • RESTORE ATMOSPHERE"
+
+[node name="EditorPanel" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -334.0
+offset_top = 20.0
+offset_right = -20.0
+offset_bottom = 560.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="Margin" type="MarginContainer" parent="EditorPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="EditorControls" type="VBoxContainer" parent="EditorPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="EditorPanel/Margin/EditorControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.76, 0.38, 1)
+theme_override_font_sizes/font_size = 16
+text = "SHIP EDITOR"
+
+[node name="Instruction" type="Label" parent="EditorPanel/Margin/EditorControls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 11
+text = "EDIT ONE GRID CELL AT A TIME"
+
+[node name="CategorySection" type="PanelContainer" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("6_crt")
+
+[node name="Content" type="VBoxContainer" parent="EditorPanel/Margin/EditorControls/CategorySection"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Label" type="Label" parent="EditorPanel/Margin/EditorControls/CategorySection/Content"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.65, 0.61, 0.48, 1)
+theme_override_font_sizes/font_size = 10
+text = "CHOOSE GRID CATEGORY"
+
+[node name="Buttons" type="GridContainer" parent="EditorPanel/Margin/EditorControls/CategorySection/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+columns = 2
+theme_override_constants/h_separation = 6
+theme_override_constants/v_separation = 6
+
+[node name="CrewCategoryButton" type="Button" parent="EditorPanel/Margin/EditorControls/CategorySection/Content/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "CREW"
+
+[node name="EngineeringCategoryButton" type="Button" parent="EditorPanel/Margin/EditorControls/CategorySection/Content/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "ENGINEERING"
+
+[node name="CombatCategoryButton" type="Button" parent="EditorPanel/Margin/EditorControls/CategorySection/Content/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "COMBAT"
+
+[node name="LogisticsCategoryButton" type="Button" parent="EditorPanel/Margin/EditorControls/CategorySection/Content/Buttons"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "LOGISTICS"
+
+[node name="TypeSection" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -624.0
+offset_top = 92.0
+offset_right = -354.0
+offset_bottom = 330.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="Content" type="VBoxContainer" parent="TypeSection"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="GridTypeCategoryLabel" type="Label" parent="TypeSection/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.78, 0.82, 1)
+theme_override_font_sizes/font_size = 10
+text = "GRID TYPES"
+
+[node name="GridTypeButtons" type="VBoxContainer" parent="TypeSection/Content"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 4
+
+[node name="AddSection" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -624.0
+offset_top = 344.0
+offset_right = -354.0
+offset_bottom = 396.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="ConfirmAddButton" type="Button" parent="AddSection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+text = "ADD SELECTED GRID"
+
+[node name="OccupiedSection" type="PanelContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -624.0
+offset_top = 92.0
+offset_right = -354.0
+offset_bottom = 148.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("HudStyle")
+script = ExtResource("6_crt")
+
+[node name="Actions" type="HBoxContainer" parent="OccupiedSection"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="DeleteSelectedCellButton" type="Button" parent="OccupiedSection/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "DELETE"
+
+[node name="GroupSelectedCellButton" type="Button" parent="OccupiedSection/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "GROUP"
+
+[node name="EditorRoomType" type="OptionButton" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="Tools" type="HBoxContainer" parent="EditorPanel/Margin/EditorControls"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="AddToolButton" type="Button" parent="EditorPanel/Margin/EditorControls/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "ADD"
+
+[node name="DeleteToolButton" type="Button" parent="EditorPanel/Margin/EditorControls/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "DELETE"
+
+[node name="GroupToolButton" type="Button" parent="EditorPanel/Margin/EditorControls/Tools"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+size_flags_horizontal = 3
+toggle_mode = true
+text = "GROUP"
+
+[node name="GroupInstruction" type="Label" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.78, 0.82, 1)
+theme_override_font_sizes/font_size = 10
+text = "CLICK CELLS TO TOGGLE FOOTPRINT SELECTION"
+autowrap_mode = 2
+
+[node name="GroupActions" type="HBoxContainer" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="CombineButton" type="Button" parent="EditorPanel/Margin/EditorControls/GroupActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "COMBINE"
+
+[node name="SplitButton" type="Button" parent="EditorPanel/Margin/EditorControls/GroupActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "SPLIT"
+
+[node name="ClearGroupSelectionButton" type="Button" parent="EditorPanel/Margin/EditorControls/GroupActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "CLEAR"
+
+[node name="FinishGroupingButton" type="Button" parent="EditorPanel/Margin/EditorControls/GroupActions"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+size_flags_horizontal = 3
+text = "DONE"
+
+[node name="FacingControls" type="HBoxContainer" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Label" type="Label" parent="EditorPanel/Margin/EditorControls/FacingControls"]
+custom_minimum_size = Vector2(72, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.35, 0.78, 0.82, 1)
+theme_override_font_sizes/font_size = 10
+text = "FACING"
+vertical_alignment = 1
+
+[node name="FacingPortButton" type="Button" parent="EditorPanel/Margin/EditorControls/FacingControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 30)
+layout_mode = 2
+toggle_mode = true
+text = "<"
+
+[node name="FacingForwardButton" type="Button" parent="EditorPanel/Margin/EditorControls/FacingControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 30)
+layout_mode = 2
+toggle_mode = true
+text = "^"
+
+[node name="FacingRearButton" type="Button" parent="EditorPanel/Margin/EditorControls/FacingControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 30)
+layout_mode = 2
+toggle_mode = true
+text = "v"
+
+[node name="FacingStarboardButton" type="Button" parent="EditorPanel/Margin/EditorControls/FacingControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 30)
+layout_mode = 2
+toggle_mode = true
+text = ">"
+
+[node name="RecipeSection" type="VBoxContainer" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="Title" type="Label" parent="EditorPanel/Margin/EditorControls/RecipeSection"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.45, 0.86, 0.9, 1)
+theme_override_font_sizes/font_size = 11
+text = "COMPATIBLE MODULE RECIPES"
+
+[node name="RecipeSelector" type="OptionButton" parent="EditorPanel/Margin/EditorControls/RecipeSection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="RecipeStats" type="Label" parent="EditorPanel/Margin/EditorControls/RecipeSection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 66)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.72, 0.69, 1)
+theme_override_font_sizes/font_size = 9
+text = "SELECT A COMPLETE GROUPED FOOTPRINT"
+autowrap_mode = 2
+
+[node name="InstallRecipeButton" type="Button" parent="EditorPanel/Margin/EditorControls/RecipeSection"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "INSTALL SELECTED RECIPE"
+
+[node name="EditorStatus" type="Label" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.74, 0.58, 0.29, 1)
+theme_override_font_sizes/font_size = 10
+text = "CLICK A CELL TO EDIT"
+autowrap_mode = 2
+
+[node name="SaveLayoutButton" type="Button" parent="EditorPanel/Margin/EditorControls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+text = "SAVE DEV LAYOUT"
+
+[node name="DeckReadout" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -248.0
+offset_top = -48.0
+offset_right = -20.0
+offset_bottom = -20.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_colors/font_color = Color(0.42, 0.38, 0.25, 1)
+theme_override_font_sizes/font_size = 11
+text = "DECK ZOOM • 1.00x"
+horizontal_alignment = 2

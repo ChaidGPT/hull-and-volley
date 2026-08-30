@@ -1,0 +1,12 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/crew_portrait.gd" id="1"]
+
+[node name="CrewPortrait" type="Control"]
+custom_minimum_size = Vector2(58, 58)
+layout_mode = 3
+anchors_preset = 0
+offset_right = 58.0
+offset_bottom = 58.0
+mouse_default_cursor_shape = 2
+script = ExtResource("1")

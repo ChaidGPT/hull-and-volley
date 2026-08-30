@@ -1,0 +1,10 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/resources/economy_resource_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+resource_id = &"metals"
+display_name = "METALS"
+short_name = "MTL"
+description = "Structural alloys used for hull plating, machinery, barrels, and internal framing."
+display_color = Color(0.58, 0.66, 0.7, 1)
+storage_per_unit = 1.0

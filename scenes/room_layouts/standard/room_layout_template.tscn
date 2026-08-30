@@ -1,0 +1,35 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/room_crew_layout.gd" id="1_layout"]
+
+[node name="RoomCrewLayout" type="Node2D"]
+script = ExtResource("1_layout")
+
+[node name="RoomArt" type="Sprite2D" parent="."]
+modulate = Color(1, 1, 1, 0.45)
+
+[node name="Obstacles" type="Node2D" parent="."]
+
+[node name="ManningLocations" type="Node2D" parent="."]
+
+[node name="IdleLocations" type="Node2D" parent="."]
+
+[node name="DoorApproaches" type="Node2D" parent="."]
+
+[node name="North" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(0, -58)
+
+[node name="East" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(58, 0)
+rotation = 1.570796
+
+[node name="South" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(0, 58)
+rotation = 3.141593
+
+[node name="West" type="Marker2D" parent="DoorApproaches"]
+position = Vector2(-58, 0)
+rotation = -1.570796
+
+[node name="SpecialLocations" type="Node2D" parent="."]
+

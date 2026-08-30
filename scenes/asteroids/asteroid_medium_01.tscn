@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://oxq6mjma50lr"]
+
+[ext_resource type="Script" uid="uid://de7obpqutgh4w" path="res://scripts/physical_asteroid.gd" id="1_script"]
+[ext_resource type="Texture2D" uid="uid://c6o6abmpwx84" path="res://assets/sprites/asteroids/asteroid_medium_01.png" id="2_texture"]
+
+[node name="AsteroidMedium01" type="RigidBody2D" unique_id=1943441427]
+script = ExtResource("1_script")
+authored_visual_radius = 32.0
+
+[node name="EditorPreview" type="Sprite2D" parent="." unique_id=1466430167]
+texture_filter = 1
+texture = ExtResource("2_texture")
+
+[node name="AsteroidCollision" type="CollisionPolygon2D" parent="." unique_id=39826412]
+polygon = PackedVector2Array(-7, -22, 0, -22, 12, -19, 22, -8, 22, 12, 15, 18, 2, 24, -11, 21, -20, 12, -21, -3, -19, -14)

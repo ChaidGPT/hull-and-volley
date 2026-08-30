@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_recipe_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/module_footprints/two_cell_line.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/weapons/longshot_cannon.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4"]
+
+[resource]
+script = ExtResource("1")
+module_id = &"heavy_explosive_cannon_mount"
+display_name = "HEAVY EXPLOSIVE CANNON"
+description = "A two-grid fixed cannon firing powerful explosive shells over long range."
+family = 0
+tags = PackedStringArray("weapon", "cannon", "explosive", "heavy")
+footprint = ExtResource("2")
+compatible_grid_types = PackedStringArray("WEAPONS")
+power_draw = 2.0
+minimum_crew = 3
+optimal_crew = 5
+maximum_health = 55.0
+payload_resource = ExtResource("3")
+visuals = ExtResource("4")

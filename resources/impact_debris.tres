@@ -1,0 +1,25 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/impact_debris_definition.gd" id="1_definition"]
+
+[resource]
+script = ExtResource("1_definition")
+fragment_count = 12
+minimum_speed = 18.0
+maximum_speed = 52.0
+spread_degrees = 78.0
+projectile_energy_influence = 0.02
+lifetime = 0.7
+collision_radius = 0.75
+fragment_mass = 0.08
+bounce = 0.35
+friction = 0.25
+linear_damping = 3.5
+surface_velocity_inheritance = 1.0
+minimum_tumble_degrees = 120.0
+maximum_tumble_degrees = 420.0
+minimum_length = 3.0
+maximum_length = 8.0
+line_width = 1.25
+hot_color = Color(0.72, 1, 0.96, 1)
+hot_fragment_chance = 0.3

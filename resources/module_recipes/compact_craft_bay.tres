@@ -1,0 +1,42 @@
+[gd_resource type="Resource" script_class="ModuleRecipeDefinition" format=3 uid="uid://d3wqn8ano1uwg"]
+
+[ext_resource type="Script" uid="uid://cd3dqtvvmsq87" path="res://scripts/resources/module_recipe_definition.gd" id="1"]
+[ext_resource type="Script" uid="uid://bbenhox0xaa4v" path="res://scripts/resources/resource_cost.gd" id="2"]
+[ext_resource type="Resource" path="res://resources/module_footprints/hangar_one_cell.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/hangars/compact_hangar.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_hangar_visual.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/economy/credits.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/economy/metals.tres" id="7"]
+[ext_resource type="Resource" path="res://resources/economy/electronics.tres" id="8"]
+
+[sub_resource type="Resource" id="Credits"]
+script = ExtResource("2")
+resource = ExtResource("6")
+amount = 180.0
+recoverable_on_dismantle = false
+
+[sub_resource type="Resource" id="Metals"]
+script = ExtResource("2")
+resource = ExtResource("7")
+amount = 45.0
+
+[sub_resource type="Resource" id="Electronics"]
+script = ExtResource("2")
+resource = ExtResource("8")
+amount = 8.0
+
+[resource]
+script = ExtResource("1")
+module_id = &"compact_craft_bay"
+display_name = "COMPACT CRAFT BAY"
+description = "Houses four light craft in a compact single-grid flight bay."
+family = 8
+footprint = ExtResource("3")
+construction_costs = Array[Resource]([SubResource("Credits"), SubResource("Metals"), SubResource("Electronics")])
+build_time = 20.0
+power_draw = 1.0
+minimum_crew = 2
+optimal_crew = 4
+maximum_health = 70.0
+payload_resource = ExtResource("4")
+visuals = ExtResource("5")

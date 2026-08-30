@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/crew_equipment_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "EQUIPMENT TEMPLATE"
+description = "Duplicate this resource and add stat modifiers keyed by operations, engineering, combat, or medical."
+stat_modifiers = {
+&"operations": 1.0
+}

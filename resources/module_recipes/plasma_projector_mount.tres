@@ -1,0 +1,20 @@
+[gd_resource type="Resource" script_class="ModuleRecipeDefinition" format=3 uid="uid://bhraqldsjk5pl"]
+
+[ext_resource type="Script" uid="uid://cd3dqtvvmsq87" path="res://scripts/resources/module_recipe_definition.gd" id="1_recipe"]
+[ext_resource type="Resource" path="res://resources/module_footprints/one_cell.tres" id="2_footprint"]
+[ext_resource type="Resource" path="res://resources/weapons/plasma_projector.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4_visual"]
+
+[resource]
+script = ExtResource("1_recipe")
+module_id = &"plasma_projector_mount"
+display_name = "PLASMA PROJECTOR"
+description = "A compact high-energy projector with severe power and crew demands."
+family = 0
+footprint = ExtResource("2_footprint")
+power_draw = 2.0
+minimum_crew = 4
+optimal_crew = 7
+maximum_health = 75.0
+payload_resource = ExtResource("3_weapon")
+visuals = ExtResource("4_visual")

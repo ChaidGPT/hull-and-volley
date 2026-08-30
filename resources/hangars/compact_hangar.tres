@@ -1,0 +1,16 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/resources/hangar_module_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/craft/fighter_behavior.tres" id="2"]
+[resource]
+script = ExtResource("1")
+hangar_id = &"compact_hangar"
+display_name = "COMPACT CRAFT BAY"
+description = "A minimal flight bay for a small utility or combat detachment."
+craft_capacity = 4
+simultaneous_launches = 1
+allowed_craft_roles = PackedStringArray("FIGHTER", "MINING", "SALVAGE", "UTILITY")
+supports_refueling = true
+launch_cycle_multiplier = 1.15
+default_craft_behavior = ExtResource("2")
+operating_radius = 900.0
+deployment_interval = 2.0

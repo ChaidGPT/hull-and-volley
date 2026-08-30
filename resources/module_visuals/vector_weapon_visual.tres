@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_visual_definition.gd" id="1_visual"]
+[ext_resource type="PackedScene" path="res://scenes/module_visuals/vector_module_template.tscn" id="2_scene"]
+
+[resource]
+script = ExtResource("1_visual")
+tactical_scene = ExtResource("2_scene")
+settlement_scene = ExtResource("2_scene")
+crew_scene = ExtResource("2_scene")
+animation_player_path = NodePath("AnimationPlayer")
+idle_animation = &"idle"
+activate_animation = &"fire"
+active_animation = &"active"
+damaged_animation = &"damaged"
+destroyed_animation = &"destroyed"
+muzzle_marker_path = NodePath("Muzzle")
+animation_speed_scale = 1.0
+rotate_with_module = true

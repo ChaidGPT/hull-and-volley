@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="ModuleRecipeDefinition" format=3 uid="uid://dqjueau5jxovk"]
+
+[ext_resource type="Script" uid="uid://cd3dqtvvmsq87" path="res://scripts/resources/module_recipe_definition.gd" id="1_recipe"]
+[ext_resource type="Resource" path="res://resources/module_footprints/two_cell_line.tres" id="2_footprint"]
+[ext_resource type="Resource" uid="uid://ultmm7y007gq" path="res://resources/weapons/traverse_gun.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4_visual"]
+[ext_resource type="Script" uid="uid://dqvuu6fp3wdid" path="res://scripts/resources/module_stat_modifier.gd" id="5_modifier"]
+
+[sub_resource type="Resource" id="DamageModifier"]
+script = ExtResource("5_modifier")
+stat_id = &"weapon_damage"
+operation = 1
+value = 1.8
+
+[sub_resource type="Resource" id="ReloadModifier"]
+script = ExtResource("5_modifier")
+stat_id = &"weapon_reload_seconds"
+operation = 1
+value = 0.82
+
+[resource]
+script = ExtResource("1_recipe")
+module_id = &"heavy_ballistic_mount"
+display_name = "HEAVY BALLISTIC REPEATER"
+description = "Two connected ballistic hardpoints consolidated into one larger rapid-fire weapon."
+family = 0
+footprint = ExtResource("2_footprint")
+power_draw = 2.0
+minimum_crew = 2
+optimal_crew = 4
+maximum_health = 45.0
+stat_modifiers = Array[Resource]([SubResource("DamageModifier"), SubResource("ReloadModifier")])
+payload_resource = ExtResource("3_weapon")
+visuals = ExtResource("4_visual")

@@ -1,0 +1,26 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/dialogue_profile_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/quests/loose_grid_recovery.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"COMBINE_INDUSTRIAL_OPERATOR"
+speaker_name = "FOREMAN ILEX"
+speaker_title = "CHARTERED COMBINE • EXTRACTION DESK"
+portrait_seed = 240
+portrait_color = Color(1, 0.68, 0.2, 1)
+allied_greeting = "Your registry gets the good channel, captain. What can the Combine move for you?"
+friendly_greeting = "Clean signal, useful ship. I may have something worth your time."
+neutral_greeting = "Extraction desk. Keep the channel clear and the numbers honest."
+suspicious_greeting = "Your transponder has bad paper attached to it. Talk carefully."
+hostile_greeting = "No contracts. No berth. This signal is going straight to Combine security."
+identity_text = "Foreman Ilex. I coordinate claim crews, ore traffic, and recoverable machinery for this Combine charter."
+remote_services_text = "I can quote stock and advertise work from here. Parts, ore, repairs, and grid transfers stay behind a dock seal. No exceptions."
+offered_quest = ExtResource("2")
+quest_offer_text = "One of our registered grid sections slipped its tug line. Recover any loose grid in this sector and bring the salvage telemetry back to this exact channel."
+quest_accepted_text = "Good. Your transponder owns the drift claim now. Recover one loose grid and hail me again."
+quest_active_text = "The drift claim is still open under your registry."
+quest_ready_text = "I see the recovery flag. Send the telemetry and I can close the charter."
+quest_complete_text = "Telemetry accepted. Your Combine standing has been credited."
+

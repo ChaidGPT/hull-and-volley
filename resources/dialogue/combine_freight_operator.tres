@@ -1,0 +1,19 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/dialogue_profile_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+profile_id = &"COMBINE_FREIGHT_OPERATOR"
+speaker_name = "FREIGHTMASTER REN"
+speaker_title = "CHARTERED COMBINE • TRANSIT NET"
+portrait_seed = 360
+portrait_color = Color(0.44, 0.92, 0.76, 1)
+allied_greeting = "Priority carrier recognized. The lane is yours when you need it."
+friendly_greeting = "Good registry. We can share the lane without watching our backs."
+neutral_greeting = "Freight channel open. We are holding course on the registered lane."
+suspicious_greeting = "Maintain separation. Your registry is throwing warnings on my board."
+hostile_greeting = "Break off. Security has your vector and this channel is closed."
+identity_text = "Freightmaster Ren. Chartered cargo, local manifests, no unscheduled deviations."
+remote_services_text = "Cargo prices can be broadcast at range. Actual purchase, delivery, refit, or cargo exchange requires a docking berth."
+

@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+[ext_resource type="Script" path="res://scripts/resources/hangar_module_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/craft/fighter_behavior.tres" id="2"]
+[resource]
+script = ExtResource("1")
+hangar_id = &"expanded_hangar"
+display_name = "EXPANDED MULTI-ROLE HANGAR"
+description = "Two joined hangar grids share launch handling and storage, supporting more craft than two isolated bays."
+craft_capacity = 10
+simultaneous_launches = 2
+allowed_craft_roles = PackedStringArray("FIGHTER", "BOMBER", "MINING", "SALVAGE", "UTILITY", "BOARDING")
+repair_per_second = 0.5
+supports_refueling = true
+supports_rearming = true
+launch_cycle_multiplier = 0.9
+default_craft_behavior = ExtResource("2")
+operating_radius = 1050.0
+deployment_interval = 1.7

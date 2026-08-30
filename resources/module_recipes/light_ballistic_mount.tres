@@ -1,0 +1,22 @@
+[gd_resource type="Resource" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/module_recipe_definition.gd" id="1_recipe"]
+[ext_resource type="Resource" path="res://resources/module_footprints/one_cell.tres" id="2_footprint"]
+[ext_resource type="Resource" path="res://resources/weapons/traverse_gun.tres" id="3_weapon"]
+[ext_resource type="Resource" path="res://resources/module_visuals/vector_weapon_visual.tres" id="4_visual"]
+
+[resource]
+script = ExtResource("1_recipe")
+module_id = &"light_ballistic_mount"
+display_name = "LIGHT BALLISTIC MOUNT"
+description = "An exposed automated point-defense or anti-fighter mount. It requires no crew, but its light exterior housing is easily damaged."
+family = 0
+tags = PackedStringArray("weapon", "ballistic", "point_defense", "external", "unmanned")
+footprint = ExtResource("2_footprint")
+compatible_grid_types = PackedStringArray("WEAPONS")
+power_draw = 1.0
+minimum_crew = 0
+optimal_crew = 0
+maximum_health = 12.0
+payload_resource = ExtResource("3_weapon")
+visuals = ExtResource("4_visual")

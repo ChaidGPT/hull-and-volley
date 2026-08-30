@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DoorDefinition" format=3 uid="uid://6a8w3ytimw4b"]
+
+[ext_resource type="Script" uid="uid://c2f2awf14vpkk" path="res://scripts/resources/door_definition.gd" id="1"]
+[ext_resource type="AudioStream" uid="uid://b17wrf1ipk5a0" path="res://assets/audio/sfx/doors/scifi_sfx_door_open.ogg" id="2_open"]
+[ext_resource type="AudioStream" uid="uid://fxfgym86tb17" path="res://assets/audio/sfx/doors/scifi_sfx_door_close.ogg" id="3_close"]
+
+[resource]
+script = ExtResource("1")
+opening_sound = ExtResource("2_open")
+closing_sound = ExtResource("3_close")

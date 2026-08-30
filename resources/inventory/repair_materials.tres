@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/ship_inventory_entry_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+item_id = &"repair_materials"
+display_name = "REPAIR MATERIALS"
+description = "Patch plates, sealant, cabling, and universal components used by damage-control crews."
+storage_class = 0
+starting_quantity = 20
+volume_per_unit = 1.0
+

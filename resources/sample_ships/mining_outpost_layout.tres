@@ -1,0 +1,53 @@
+[gd_resource type="Resource" script_class="ShipLayoutResource" format=3 uid="uid://b02p4cjx42jlu"]
+
+[ext_resource type="Script" uid="uid://cc5edgh2fy2y0" path="res://scripts/resources/ship_layout_resource.gd" id="1"]
+[ext_resource type="Script" uid="uid://cxoy45iru85el" path="res://scripts/resources/room_layout_data.gd" id="2"]
+
+[sub_resource type="Resource" id="Command"]
+script = ExtResource("2")
+room_id = &"mining_outpost_command"
+display_name = "TRAFFIC CONTROL"
+type_name = "COMMAND"
+grid_rects = Array[Rect2i]([Rect2i(2, 0, 1, 1)])
+color = Color(0.12, 0.38, 0.4, 1)
+maximum_health = 90.0
+
+[sub_resource type="Resource" id="Processing"]
+script = ExtResource("2")
+room_id = &"mining_outpost_processing"
+display_name = "ORE PROCESSING"
+type_name = "ENGINEERING"
+grid_rects = Array[Rect2i]([Rect2i(1, 1, 3, 3)])
+color = Color(0.34, 0.29, 0.13, 1)
+maximum_health = 260.0
+
+[sub_resource type="Resource" id="PortStores"]
+script = ExtResource("2")
+room_id = &"mining_outpost_stores"
+display_name = "MINERAL STORES"
+grid_rects = Array[Rect2i]([Rect2i(0, 2, 1, 1)])
+color = Color(0.24, 0.26, 0.25, 1)
+
+[sub_resource type="Resource" id="Docking"]
+script = ExtResource("2")
+room_id = &"mining_outpost_docking"
+display_name = "CARGO BERTH"
+type_name = "DOCKING"
+grid_rects = Array[Rect2i]([Rect2i(4, 2, 1, 1)])
+color = Color(0.42, 0.28, 0.12, 1)
+module_facing_quarters = 1
+
+[sub_resource type="Resource" id="Reactor"]
+script = ExtResource("2")
+room_id = &"mining_outpost_reactor"
+display_name = "INDUSTRIAL REACTOR"
+type_name = "REACTOR"
+grid_rects = Array[Rect2i]([Rect2i(2, 4, 1, 1)])
+color = Color(0.44, 0.33, 0.08, 1)
+maximum_health = 130.0
+
+[resource]
+script = ExtResource("1")
+columns = 5
+rows = 5
+rooms = Array[Resource]([SubResource("Command"), SubResource("Processing"), SubResource("PortStores"), SubResource("Docking"), SubResource("Reactor")])

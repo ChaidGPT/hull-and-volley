@@ -1,0 +1,11 @@
+[gd_resource type="Resource" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/resources/economy_resource_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+resource_id = &"credits"
+display_name = "CREDITS"
+short_name = "CR"
+description = "General currency used for labor, licenses, services, and trade. Credits do not consume cargo space."
+display_color = Color(0.94, 0.78, 0.3, 1)
+uses_storage_capacity = false
+storage_per_unit = 0.0

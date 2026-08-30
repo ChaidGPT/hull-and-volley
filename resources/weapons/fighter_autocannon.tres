@@ -1,0 +1,38 @@
+[gd_resource type="Resource" script_class="WeaponDefinition" format=3 uid="uid://da5t2ivafjj1f"]
+
+[ext_resource type="Script" uid="uid://bck87nvtoxd20" path="res://scripts/resources/weapon_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/fighter_projectile.tscn" id="2"]
+[ext_resource type="AudioStream" uid="uid://d3u2hh54lho4g" path="res://assets/audio/weapons/prunus/scifi_weapon_small.ogg" id="3_fire"]
+[ext_resource type="Resource" path="res://resources/fighter_impact_debris.tres" id="4_impact"]
+[ext_resource type="AudioStream" uid="uid://cgfaeyu8fqfx4" path="res://assets/audio/sfx/scifi_hit_large_01.mp3" id="5_hit"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/impact_sprite_small.tscn" id="6_impact_visual"]
+
+[resource]
+script = ExtResource("1")
+weapon_id = &"fighter_autocannon"
+display_name = "FIGHTER AUTOCANNON"
+description = "A light, rapid weapon carried by autonomous strike craft."
+weapon_family = "BALLISTIC"
+maximum_range = 320.0
+damage = 1.0
+shield_damage_multiplier = 0.4
+hull_damage_multiplier = 0.2
+system_damage_multiplier = 0.4
+breach_damage_multiplier = 0.0
+fighter_damage_multiplier = 1.5
+accuracy_degrees = 8.0
+penetration_power = 0.5
+reload_seconds = 0.42
+projectile_speed = 520.0
+projectile_collision_radius = 0.45
+projectile_mass = 0.08
+visual_color = Color(0.35, 0.95, 0.82, 1)
+projectile_scene = ExtResource("2")
+impact_effect_scene = ExtResource("6_impact_visual")
+impact_debris_definition = ExtResource("4_impact")
+firing_sound = ExtResource("3_fire")
+firing_volume_db = -8.0
+firing_pitch_variation = 0.1
+impact_sound = ExtResource("5_hit")
+impact_volume_db = -12.0
+impact_pitch_variation = 0.18

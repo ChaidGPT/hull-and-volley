@@ -1,0 +1,72 @@
+[gd_scene format=3 uid="uid://dgyhoiqlbiofr"]
+
+[ext_resource type="Script" uid="uid://yh120gljm1a7" path="res://scripts/room_crew_layout.gd" id="1_layout"]
+[ext_resource type="Texture2D" uid="uid://ujuhri5sed7x" path="res://assets/sprites/interiors/rooms/standard/overlays/reactor.png" id="2_art"]
+[ext_resource type="Script" uid="uid://b8sdxrdin06yf" path="res://scripts/room_layout_obstacle.gd" id="3_obstacle"]
+
+[node name="ReactorCrewLayout" type="Node2D" unique_id=1346090729]
+script = ExtResource("1_layout")
+
+[node name="RoomArt" type="Sprite2D" parent="." unique_id=551475589]
+modulate = Color(1, 1, 1, 0.55)
+texture = ExtResource("2_art")
+
+[node name="Obstacles" type="Node2D" parent="." unique_id=120105365]
+
+[node name="ReactorMachinery" type="Polygon2D" parent="Obstacles" unique_id=1754423655]
+color = Color(1, 0.24, 0.16, 0.18)
+polygon = PackedVector2Array(-17, -32, 17, -32, 32, -16, 32, 16, 17, 32, -17, 32, -32, 16, -32, -17)
+script = ExtResource("3_obstacle")
+
+[node name="ManningLocations" type="Node2D" parent="." unique_id=868478350]
+
+[node name="NorthStation" type="Marker2D" parent="ManningLocations" unique_id=1393844462]
+position = Vector2(0, -45)
+rotation = 3.141593
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/NorthStation" unique_id=1191293226]
+position = Vector2(2.28089e-06, 7)
+
+[node name="EastStation" type="Marker2D" parent="ManningLocations" unique_id=1008825825]
+position = Vector2(45, 0)
+rotation = -1.570796
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/EastStation" unique_id=262088949]
+position = Vector2(2.825248e-06, 9)
+
+[node name="SouthStation" type="Marker2D" parent="ManningLocations" unique_id=820161070]
+position = Vector2(0, 45)
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/SouthStation" unique_id=1567284378]
+position = Vector2(0, 7)
+
+[node name="WestStation" type="Marker2D" parent="ManningLocations" unique_id=103818819]
+position = Vector2(-45, 0)
+rotation = 1.570796
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/WestStation" unique_id=268085190]
+position = Vector2(-2.1974151e-06, 7)
+
+[node name="IdleLocations" type="Node2D" parent="." unique_id=1266856823]
+
+[node name="NorthWest" type="Marker2D" parent="IdleLocations" unique_id=793537716]
+position = Vector2(-52, -52)
+
+[node name="SouthEast" type="Marker2D" parent="IdleLocations" unique_id=1897901863]
+position = Vector2(52, 52)
+
+[node name="DoorApproaches" type="Node2D" parent="." unique_id=643316696]
+
+[node name="North" type="Marker2D" parent="DoorApproaches" unique_id=700468553]
+position = Vector2(0, -68)
+
+[node name="East" type="Marker2D" parent="DoorApproaches" unique_id=1836132337]
+position = Vector2(68, 0)
+
+[node name="South" type="Marker2D" parent="DoorApproaches" unique_id=1005282030]
+position = Vector2(0, 68)
+
+[node name="West" type="Marker2D" parent="DoorApproaches" unique_id=315346138]
+position = Vector2(-68, 0)
+
+[node name="SpecialLocations" type="Node2D" parent="." unique_id=632464852]

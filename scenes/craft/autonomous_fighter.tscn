@@ -1,0 +1,20 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/craft/autonomous_fighter.gd" id="1"]
+
+[sub_resource type="CircleShape2D" id="1"]
+radius = 4.0
+
+[node name="AutonomousFighter" type="RigidBody2D" groups=["autonomous_fighters"]]
+collision_layer = 8
+collision_mask = 1
+mass = 0.35
+gravity_scale = 0.0
+linear_damp = 1.5
+angular_damp = 4.0
+continuous_cd = 1
+lock_rotation = true
+script = ExtResource("1")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("1")

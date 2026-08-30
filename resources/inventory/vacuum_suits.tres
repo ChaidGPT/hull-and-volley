@@ -1,0 +1,15 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/ship_inventory_entry_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/equipment/vacuum_suit.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+item_id = &"vacuum_suit"
+display_name = "VACUUM SUIT"
+description = "Emergency environmental protection stored for damage-control teams."
+storage_class = 0
+starting_quantity = 4
+volume_per_unit = 3.0
+equipment_definition = ExtResource("2")
+

@@ -1,0 +1,228 @@
+[gd_resource type="Resource" script_class="ShipLayoutResource" format=3 uid="uid://duprrhwbconcd"]
+
+[ext_resource type="Script" uid="uid://cc5edgh2fy2y0" path="res://scripts/resources/ship_layout_resource.gd" id="1_layout"]
+[ext_resource type="Script" uid="uid://cxoy45iru85el" path="res://scripts/resources/room_layout_data.gd" id="2_room"]
+[ext_resource type="Resource" uid="uid://51a045oxjdff" path="res://resources/weapons/longshot_cannon.tres" id="3_longshot"]
+[ext_resource type="Resource" uid="uid://ultmm7y007gq" path="res://resources/weapons/traverse_gun.tres" id="4_traverse"]
+[ext_resource type="Resource" uid="uid://ofkujh266o1u" path="res://resources/weapons/laser_emitter.tres" id="5_laser"]
+[ext_resource type="Resource" uid="uid://dgu6gn8spvjy8" path="res://resources/weapons/plasma_projector.tres" id="6_plasma"]
+[ext_resource type="Resource" uid="uid://x4kj7tneum8c" path="res://resources/weapons/missile_launcher.tres" id="7_missile"]
+[ext_resource type="Resource" path="res://resources/module_recipes/light_ballistic_mount.tres" id="8_light_module"]
+[ext_resource type="Resource" uid="uid://dqjueau5jxovk" path="res://resources/module_recipes/heavy_ballistic_mount.tres" id="9_heavy_module"]
+[ext_resource type="Resource" path="res://resources/module_recipes/massive_forward_laser.tres" id="10_laser_module"]
+[ext_resource type="Resource" path="res://resources/module_recipes/explosive_cannon_mount.tres" id="11_cannon_module"]
+[ext_resource type="Resource" path="res://resources/module_recipes/laser_emitter_mount.tres" id="12_small_laser_module"]
+[ext_resource type="Resource" uid="uid://bhraqldsjk5pl" path="res://resources/module_recipes/plasma_projector_mount.tres" id="13_plasma_module"]
+[ext_resource type="Resource" path="res://resources/module_recipes/missile_launcher_mount.tres" id="14_missile_module"]
+[ext_resource type="Resource" path="res://resources/economy/default_resource_catalog.tres" id="15_resource_catalog"]
+[ext_resource type="Resource" uid="uid://d3wqn8ano1uwg" path="res://resources/module_recipes/compact_craft_bay.tres" id="16_compact_hangar"]
+[ext_resource type="Resource" uid="uid://dxquggtl4iuj5" path="res://resources/module_recipes/expanded_multi_role_hangar.tres" id="17_expanded_hangar"]
+[ext_resource type="Resource" uid="uid://1cqqvq7t6yv0" path="res://resources/module_recipes/fleet_service_hangar.tres" id="18_fleet_hangar"]
+[ext_resource type="Resource" path="res://resources/module_recipes/heavy_explosive_cannon_mount.tres" id="19_heavy_cannon"]
+[ext_resource type="Script" uid="uid://duaikgcd38fy3" path="res://scripts/resources/grid_build_requirement.gd" id="20_build_requirement"]
+
+[sub_resource type="Resource" id="Bridge"]
+script = ExtResource("2_room")
+room_id = &"bridge"
+display_name = "BRIDGE"
+type_name = "COMMAND"
+grid_rects = Array[Rect2i]([Rect2i(0, 0, 1, 1)])
+color = Color(0.13, 0.38, 0.42, 1)
+maximum_health = 80.0
+
+[sub_resource type="Resource" id="Unassigned"]
+script = ExtResource("2_room")
+room_id = &"unassigned"
+display_name = "UNASSIGNED COMPARTMENT"
+grid_rects = Array[Rect2i]([Rect2i(1, 2, 2, 1), Rect2i(1, 3, 1, 1), Rect2i(1, 4, 1, 1), Rect2i(3, 4, 1, 1)])
+color = Color(0.16, 0.19, 0.2, 1)
+maximum_health = 120.0
+produces_output = false
+
+[sub_resource type="Resource" id="PortEngine"]
+script = ExtResource("2_room")
+room_id = &"port_engine"
+display_name = "AFT THRUSTER"
+type_name = "PROPULSION"
+effect_label = "THRUST OUTPUT"
+grid_rects = Array[Rect2i]([Rect2i(0, 3, 1, 1)])
+color = Color(0.4, 0.18, 0.12, 1)
+maximum_health = 50.0
+module_facing_quarters = 2
+
+[sub_resource type="Resource" id="PortForwardWeapon"]
+script = ExtResource("2_room")
+room_id = &"port_forward_weapon"
+display_name = "PORT FORWARD WEAPON"
+type_name = "WEAPONS"
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(0, 1, 1, 1)])
+color = Color(0.38, 0.24, 0.12, 1)
+maximum_health = 20.0
+weapon_definition = ExtResource("3_longshot")
+
+[sub_resource type="Resource" id="TypeCrewQuarters"]
+script = ExtResource("2_room")
+room_id = &"type_crew_quarters"
+display_name = "CREW QUARTERS"
+type_name = "CREW_QUARTERS"
+effect_label = "CREW CAPACITY / MORALE"
+description = "Housing for off-duty crew. Increases maximum crew capacity and supports crew morale."
+color = Color(0.27, 0.2, 0.38, 1)
+maximum_health = 80.0
+
+[sub_resource type="Resource" id="TypeSecurity"]
+script = ExtResource("2_room")
+room_id = &"type_security"
+display_name = "SECURITY"
+type_name = "SECURITY"
+effect_label = "BOARDING DEFENSE / ORDER"
+description = "Coordinates armed response to boarders and helps contain unrest among the crew."
+color = Color(0.34, 0.13, 0.15, 1)
+
+[sub_resource type="Resource" id="RequiresReactorShipwide"]
+script = ExtResource("20_build_requirement")
+display_name = "REACTOR REQUIRED"
+description = "This system needs a reactor installed somewhere in the ship before the grid can be built."
+scope = 1
+
+[sub_resource type="Resource" id="TypeShieldGenerator"]
+script = ExtResource("2_room")
+room_id = &"type_shield_generator"
+display_name = "SHIELD GENERATOR"
+type_name = "SHIELDS"
+effect_label = "SHIELD CAPACITY / REGEN"
+description = "Generates the ship's defensive field. Room size and staffing will determine shield capacity and regeneration."
+color = Color(0.08, 0.3, 0.38, 1)
+build_requirements = Array[Resource]([SubResource("RequiresReactorShipwide")])
+
+[sub_resource type="Resource" id="TypeReactor"]
+script = ExtResource("2_room")
+room_id = &"type_reactor"
+display_name = "REACTOR"
+type_name = "POWER"
+effect_label = "POWER GENERATION"
+description = "Produces power for ship systems. Damage can reduce available power and create dangerous failures."
+color = Color(0.4, 0.3, 0.08, 1)
+maximum_health = 120.0
+
+[sub_resource type="Resource" id="RequiresCrewQuartersAdjacent"]
+script = ExtResource("20_build_requirement")
+display_name = "CREW SUPPORT REQUIRED"
+description = "This compartment must touch crew quarters before the grid can be built."
+scope = 2
+
+[sub_resource type="Resource" id="TypeMedicalBay"]
+script = ExtResource("2_room")
+room_id = &"type_medical_bay"
+display_name = "MEDICAL BAY"
+type_name = "MEDICAL"
+effect_label = "HEALING / SURVIVABILITY"
+description = "Treats injured crew and reduces deaths from wounds sustained during combat and accidents."
+color = Color(0.12, 0.34, 0.27, 1)
+maximum_health = 70.0
+build_requirements = Array[Resource]([SubResource("RequiresCrewQuartersAdjacent")])
+
+[sub_resource type="Resource" id="TypeMessHall"]
+script = ExtResource("2_room")
+room_id = &"type_mess_hall"
+display_name = "MESS HALL"
+type_name = "MESS_HALL"
+effect_label = "MORALE / FOOD EFFICIENCY"
+description = "Feeds the crew and provides a shared social space, improving morale during long voyages."
+color = Color(0.38, 0.27, 0.14, 1)
+maximum_health = 60.0
+
+[sub_resource type="Resource" id="TypeWorkshop"]
+script = ExtResource("2_room")
+room_id = &"type_workshop"
+display_name = "ENGINEERING BAY"
+type_name = "WORKSHOP"
+effect_label = "DAMAGE CONTROL OUTFITTING"
+description = "Outfits responders with repair tools and environmental gear. If this bay is damaged, powerless, unstaffed, or inaccessible, new damage-control teams cannot deploy."
+color = Color(0.36, 0.2, 0.1, 1)
+maximum_health = 90.0
+
+[sub_resource type="Resource" id="TypeSupplyStorage"]
+script = ExtResource("2_room")
+room_id = &"type_supply_storage"
+display_name = "LEGACY SUPPLY COMPARTMENT"
+type_name = "SUPPLY_STORAGE"
+effect_label = "OPERATIONAL STORAGE"
+description = "Compatibility compartment from the retired counted-inventory system. New ships use service-providing grids instead."
+grid_label = "SUP"
+color = Color(0.18, 0.31, 0.27, 1)
+maximum_health = 75.0
+storage_role = "SUPPLY"
+storage_capacity_per_cell = 60.0
+
+[sub_resource type="Resource" id="TypeCargoHold"]
+script = ExtResource("2_room")
+room_id = &"type_cargo_hold"
+display_name = "CARGO HOLD"
+type_name = "CARGO"
+effect_label = "STORAGE CAPACITY"
+description = "Bulk freight storage for salvage, ore, trade goods, and materials intended for sale or refining. Cargo is not directly issued to crew."
+color = Color(0.24, 0.25, 0.19, 1)
+storage_role = "CARGO"
+storage_capacity_per_cell = 120.0
+
+[sub_resource type="Resource" id="TypeHangar"]
+script = ExtResource("2_room")
+room_id = &"type_hangar"
+display_name = "HANGAR"
+type_name = "HANGAR"
+effect_label = "CRAFT CAPACITY / LAUNCH RATE"
+description = "Infrastructure for housing, launching, recovering, and servicing carried craft. Installed modules determine capacity and supported craft roles."
+grid_label = "HGR"
+color = Color(0.1, 0.3, 0.32, 1)
+maximum_health = 90.0
+build_requirements = Array[Resource]([SubResource("RequiresReactorShipwide")])
+
+[sub_resource type="Resource" id="TypeDockingStation"]
+script = ExtResource("2_room")
+room_id = &"type_docking_station"
+display_name = "DOCKING STATION"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS / TRANSFER"
+description = "Heavy docking infrastructure for capital ships, trade transfer, resupply, repairs, and future station services."
+grid_label = "DOCK"
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 120.0
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="Resource_8cbsc"]
+script = ExtResource("2_room")
+room_id = &"crew_quarters_103856674"
+display_name = "CREW QUARTERS"
+type_name = "CREW_QUARTERS"
+effect_label = "CREW CAPACITY / MORALE"
+description = "Housing for off-duty crew. Increases maximum crew capacity and supports crew morale."
+grid_rects = Array[Rect2i]([Rect2i(0, 1, 1, 1)])
+color = Color(0.27, 0.2, 0.38, 1)
+maximum_health = 80.0
+
+[sub_resource type="Resource" id="Resource_cficp"]
+script = ExtResource("2_room")
+room_id = &"power_55574629"
+display_name = "REACTOR"
+type_name = "POWER"
+effect_label = "POWER GENERATION"
+description = "Produces power for ship systems. Damage can reduce available power and create dangerous failures."
+grid_rects = Array[Rect2i]([Rect2i(0, 2, 1, 1)])
+color = Color(0.4, 0.3, 0.08, 1)
+maximum_health = 120.0
+
+[resource]
+script = ExtResource("1_layout")
+design_name = "BAREBONES STARTER"
+build_origin = Vector2i(-8, -6)
+columns = 16
+rows = 16
+unlimited_build_space = false
+room_types = Array[Resource]([SubResource("Bridge"), SubResource("Unassigned"), SubResource("PortEngine"), SubResource("PortForwardWeapon"), SubResource("TypeCrewQuarters"), SubResource("TypeSecurity"), SubResource("TypeShieldGenerator"), SubResource("TypeReactor"), SubResource("TypeMedicalBay"), SubResource("TypeMessHall"), SubResource("TypeWorkshop"), SubResource("TypeSupplyStorage"), SubResource("TypeCargoHold"), SubResource("TypeHangar"), SubResource("TypeDockingStation")])
+weapon_types = Array[Resource]([ExtResource("3_longshot"), ExtResource("4_traverse"), ExtResource("5_laser"), ExtResource("6_plasma"), ExtResource("7_missile")])
+module_recipes = Array[Resource]([ExtResource("8_light_module"), ExtResource("9_heavy_module"), ExtResource("10_laser_module"), ExtResource("11_cannon_module"), ExtResource("12_small_laser_module"), ExtResource("13_plasma_module"), ExtResource("14_missile_module"), ExtResource("16_compact_hangar"), ExtResource("17_expanded_hangar"), ExtResource("18_fleet_hangar"), ExtResource("19_heavy_cannon")])
+resource_catalog = ExtResource("15_resource_catalog")
+rooms = Array[Resource]([SubResource("Bridge"), SubResource("Resource_8cbsc"), SubResource("Resource_cficp"), SubResource("PortEngine")])

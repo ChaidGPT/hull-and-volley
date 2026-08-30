@@ -1,0 +1,1004 @@
+[gd_scene load_steps=70 format=3]
+
+[ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" path="res://scripts/ship_simulation.gd" id="2_sim"]
+[ext_resource type="Resource" path="res://resources/starting_ship_layout.tres" id="3_layout"]
+[ext_resource type="Script" path="res://scripts/combat_simulation.gd" id="4_combat"]
+[ext_resource type="PackedScene" path="res://scenes/physics_ship_body.tscn" id="5_physics_ship"]
+[ext_resource type="Resource" path="res://resources/impact_debris.tres" id="6_debris"]
+[ext_resource type="Resource" path="res://resources/hangars/compact_hangar.tres" id="7_basic_hangar"]
+[ext_resource type="Script" path="res://scripts/menu_audio.gd" id="8_menu_audio"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/Bleep_03.wav" id="9_menu_open"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/Execute_01.wav" id="10_menu_execute"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/Denied_03.wav" id="11_menu_cancel"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/Bleep_03_Reversed.wav" id="21_menu_close"]
+[ext_resource type="Resource" path="res://resources/destruction_debris.tres" id="12_destruction_debris"]
+[ext_resource type="Resource" path="res://resources/sample_ships/escort_definition.tres" id="13_escort"]
+[ext_resource type="Resource" path="res://resources/sample_ships/broadside_cruiser_definition.tres" id="14_cruiser"]
+[ext_resource type="Resource" path="res://resources/default_structural_material.tres" id="15_structure"]
+[ext_resource type="Resource" path="res://resources/default_door_definition.tres" id="16_doors"]
+[ext_resource type="Script" path="res://scripts/crew_simulation.gd" id="17_crew_sim"]
+[ext_resource type="Resource" path="res://resources/default_crew_visual.tres" id="18_crew_visual"]
+[ext_resource type="Resource" path="res://resources/crew_rules.tres" id="19_crew_rules"]
+[ext_resource type="Script" path="res://scripts/crt_context_panel.gd" id="20_crt"]
+[ext_resource type="Resource" path="res://resources/sample_ships/orbital_station_definition.tres" id="25_station"]
+[ext_resource type="Script" path="res://scripts/speedometer_gauge.gd" id="26_speed_gauge"]
+[ext_resource type="Script" path="res://scripts/crt_tooltip_layer.gd" id="27_crt_tooltip"]
+[ext_resource type="Script" path="res://scripts/directional_shield_bar.gd" id="28_directional_shield"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx/explosion_quick.wav" id="29_explosion_quick"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx/explosion_medium.wav" id="30_explosion_medium"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx/explosion_large.wav" id="31_explosion_large"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx/power_up_2.wav" id="32_grid_pickup"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx/weapon_upgrade.wav" id="34_grid_install"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/View_Transition.wav" id="50_view_transition"]
+[ext_resource type="AudioStream" path="res://assets/audio/ui/Action_Denied.wav" id="51_action_denied"]
+[ext_resource type="Script" path="res://scripts/sector_simulation.gd" id="35_sector"]
+[ext_resource type="Script" path="res://scripts/sector_population.gd" id="36_sector_population"]
+[ext_resource type="Resource" path="res://resources/sample_ships/mining_outpost_definition.tres" id="37_mining_outpost"]
+[ext_resource type="Resource" path="res://resources/sample_ships/bulk_miner_definition.tres" id="38_bulk_miner"]
+[ext_resource type="Resource" path="res://resources/sample_ships/lane_freighter_definition.tres" id="39_freighter"]
+[ext_resource type="Resource" path="res://resources/encounters/mining_operation.tres" id="40_mining_encounter"]
+[ext_resource type="Resource" path="res://resources/encounters/shipping_lane.tres" id="41_lane_encounter"]
+[ext_resource type="Resource" path="res://resources/encounters/transit_fleet.tres" id="42_fleet_encounter"]
+[ext_resource type="Script" path="res://scripts/reputation_simulation.gd" id="43_reputation"]
+[ext_resource type="Resource" path="res://resources/factions/united_systems_compact.tres" id="44_united_systems"]
+[ext_resource type="Resource" path="res://resources/factions/chartered_combine.tres" id="45_combine"]
+[ext_resource type="Resource" path="res://resources/factions/free_systems_rebellion.tres" id="46_free_systems"]
+[ext_resource type="Script" path="res://scripts/quest_simulation.gd" id="47_quests"]
+[ext_resource type="Script" path="res://scripts/dialogue_simulation.gd" id="48_dialogue"]
+[ext_resource type="Resource" path="res://resources/quests/loose_grid_recovery.tres" id="49_loose_grid_quest"]
+
+[sub_resource type="StyleBoxFlat" id="StyleHeader"]
+bg_color = Color(0.055, 0.075, 0.102, 1)
+border_width_bottom = 2
+border_color = Color(0.18, 0.66, 0.72, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleCommandPortrait"]
+bg_color = Color(0.025, 0.045, 0.06, 1)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(0.34, 0.8, 0.82, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleStatusBack"]
+bg_color = Color(0.015, 0.025, 0.035, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.12, 0.2, 0.24, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleShieldFill"]
+bg_color = Color(0.16, 0.76, 0.9, 1)
+border_width_right = 2
+border_color = Color(0.78, 1, 1, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleHullFill"]
+bg_color = Color(0.55, 0.78, 0.55, 1)
+border_width_right = 2
+border_color = Color(0.86, 1, 0.76, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleModeRail"]
+bg_color = Color(0.025, 0.038, 0.052, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.13, 0.25, 0.31, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 10
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleModeSelectorLight"]
+bg_color = Color(0.04, 0.44, 0.5, 0.86)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(0.62, 1, 0.96, 0.95)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 2
+shadow_color = Color(0.1, 0.9, 0.95, 0.38)
+shadow_size = 10
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonNormal"]
+bg_color = Color(0.035, 0.052, 0.068, 0.72)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.16, 0.3, 0.36, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonHover"]
+bg_color = Color(0.06, 0.17, 0.2, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.25, 0.72, 0.76, 1)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleButtonPressed"]
+bg_color = Color(0.035, 0.052, 0.068, 0.35)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.48, 0.94, 0.92, 0.35)
+corner_radius_top_left = 2
+corner_radius_top_right = 2
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 2
+
+[sub_resource type="StyleBoxFlat" id="StyleContent"]
+bg_color = Color(0.025, 0.035, 0.05, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleFooter"]
+bg_color = Color(0.04, 0.055, 0.075, 1)
+border_width_top = 1
+border_color = Color(0.13, 0.17, 0.22, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleForge"]
+bg_color = Color(0.035, 0.025, 0.055, 0.97)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(0.72, 0.3, 0.82, 1)
+corner_radius_top_left = 3
+corner_radius_bottom_right = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleForgeControl"]
+bg_color = Color(0.055, 0.035, 0.075, 0.94)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.38, 0.16, 0.46, 1)
+corner_radius_top_right = 2
+corner_radius_bottom_right = 7
+
+[sub_resource type="StyleBoxFlat" id="StyleForgeControlHover"]
+bg_color = Color(0.14, 0.055, 0.17, 1)
+border_width_left = 3
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(0.95, 0.45, 1, 1)
+corner_radius_top_right = 2
+corner_radius_bottom_right = 7
+shadow_color = Color(0.78, 0.2, 0.95, 0.28)
+shadow_size = 5
+
+[sub_resource type="StyleBoxFlat" id="StyleLogistics"]
+bg_color = Color(0.012, 0.03, 0.035, 0.98)
+border_width_left = 2
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 2
+border_color = Color(0.18, 0.88, 0.78, 1)
+corner_radius_top_left = 3
+corner_radius_bottom_right = 3
+
+[sub_resource type="StyleBoxFlat" id="StyleLogisticsInner"]
+bg_color = Color(0.02, 0.04, 0.043, 0.78)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.08, 0.32, 0.32, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleLogisticsButton"]
+bg_color = Color(0.035, 0.06, 0.06, 0.92)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.08, 0.34, 0.34, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleLogisticsButtonHover"]
+bg_color = Color(0.05, 0.12, 0.115, 0.96)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.34, 0.96, 0.86, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 6
+
+[sub_resource type="StyleBoxFlat" id="StyleLogisticsThumb"]
+bg_color = Color(0.018, 0.05, 0.052, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.18, 0.72, 0.68, 1)
+corner_radius_top_left = 2
+corner_radius_bottom_right = 8
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_main")
+transition_sound = ExtResource("50_view_transition")
+
+[node name="ShipSimulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("2_sim")
+ship_layout = ExtResource("3_layout")
+physics_body_path = NodePath("../PhysicsWorld/PlayerPhysicsBody")
+structural_material = ExtResource("15_structure")
+door_definition = ExtResource("16_doors")
+
+[node name="ReputationSimulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("43_reputation")
+faction_definitions = Array[Resource]([ExtResource("44_united_systems"), ExtResource("45_combine"), ExtResource("46_free_systems")])
+
+[node name="QuestSimulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("47_quests")
+quest_definitions = Array[Resource]([ExtResource("49_loose_grid_quest")])
+
+[node name="DialogueSimulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("48_dialogue")
+
+[node name="SectorSimulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("35_sector")
+
+[node name="PhysicsWorld" type="Node2D" parent="." groups=["physics_world"]]
+unique_name_in_owner = true
+
+[node name="PlayerPhysicsBody" parent="PhysicsWorld" instance=ExtResource("5_physics_ship")]
+unique_name_in_owner = true
+ship_layout = ExtResource("3_layout")
+
+[node name="CombatSimulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("4_combat")
+sample_ship_definitions = Array[Resource]([ExtResource("13_escort"), ExtResource("14_cruiser")])
+default_space_station_definition = ExtResource("25_station")
+default_structural_material = ExtResource("15_structure")
+default_door_definition = ExtResource("16_doors")
+impact_debris_definition = ExtResource("6_debris")
+destruction_debris_definition = ExtResource("12_destruction_debris")
+small_explosion_sound = ExtResource("29_explosion_quick")
+medium_explosion_sound = ExtResource("30_explosion_medium")
+large_explosion_sound = ExtResource("31_explosion_large")
+grid_pickup_sound = ExtResource("32_grid_pickup")
+basic_hangar_definition = ExtResource("7_basic_hangar")
+
+[node name="SectorPopulation" type="Node" parent="."]
+unique_name_in_owner = true
+script = ExtResource("36_sector_population")
+neutral_encounter_pool = Array[Resource]([ExtResource("40_mining_encounter"), ExtResource("41_lane_encounter"), ExtResource("42_fleet_encounter")])
+mining_outpost_definition = ExtResource("37_mining_outpost")
+bulk_miner_definition = ExtResource("38_bulk_miner")
+freighter_definition = ExtResource("39_freighter")
+
+[node name="CrewSimulation" type="Node" parent="."]
+script = ExtResource("17_crew_sim")
+starting_crew_count = 8
+crew_definition = ExtResource("18_crew_visual")
+crew_rules = ExtResource("19_crew_rules")
+assignment_sound = ExtResource("10_menu_execute")
+
+[node name="TransitionAudio" type="AudioStreamPlayer" parent="."]
+unique_name_in_owner = true
+
+[node name="MenuAudio" type="Node" parent="."]
+script = ExtResource("8_menu_audio")
+menu_open_sound = ExtResource("9_menu_open")
+menu_close_sound = ExtResource("21_menu_close")
+menu_execute_sound = ExtResource("10_menu_execute")
+menu_cancel_sound = ExtResource("11_menu_cancel")
+builder_denied_sound = ExtResource("51_action_denied")
+builder_install_sound = ExtResource("34_grid_install")
+
+[node name="CrtTooltipLayer" type="CanvasLayer" parent="."]
+script = ExtResource("27_crt_tooltip")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.02, 0.028, 0.04, 1)
+mouse_filter = 2
+
+[node name="Layout" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 0
+
+[node name="Header" type="PanelContainer" parent="Layout"]
+custom_minimum_size = Vector2(0, 72)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleHeader")
+
+[node name="HeaderMargin" type="MarginContainer" parent="Layout/Header"]
+layout_mode = 2
+theme_override_constants/margin_left = 28
+theme_override_constants/margin_top = 8
+theme_override_constants/margin_right = 28
+theme_override_constants/margin_bottom = 8
+
+[node name="HeaderRow" type="HBoxContainer" parent="Layout/Header/HeaderMargin"]
+layout_mode = 2
+theme_override_constants/separation = 22
+
+[node name="CommandStatus" type="HBoxContainer" parent="Layout/Header/HeaderMargin/HeaderRow"]
+custom_minimum_size = Vector2(430, 0)
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="PlayerPortraitFrame" type="PanelContainer" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus"]
+custom_minimum_size = Vector2(48, 48)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleCommandPortrait")
+
+[node name="PlayerPortraitLabel" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/PlayerPortraitFrame"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.74, 0.96, 0.95, 1)
+theme_override_font_sizes/font_size = 11
+text = "CAPT"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="StatusStack" type="VBoxContainer" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="CommandLine" type="HBoxContainer" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="CommandLabel" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/CommandLine"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.94, 0.93, 1)
+theme_override_font_sizes/font_size = 12
+text = "COMMANDER"
+
+[node name="CurrentViewLabel" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/CommandLine"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.34, 0.68, 0.7, 1)
+theme_override_font_sizes/font_size = 11
+text = "TACTICAL VIEW"
+
+[node name="ShieldStatusRow" type="HBoxContainer" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack"]
+visible = false
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="ShieldLabel" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/ShieldStatusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.9, 0.95, 1)
+theme_override_font_sizes/font_size = 12
+text = "SHIELD"
+
+[node name="ShieldBar" type="Control" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(58, 50)
+layout_mode = 2
+size_flags_vertical = 4
+mouse_filter = 0
+script = ExtResource("28_directional_shield")
+
+[node name="ShieldValue" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/ShieldStatusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.58, 0.86, 0.88, 1)
+theme_override_font_sizes/font_size = 11
+text = "100%"
+
+[node name="HullStatusRow" type="HBoxContainer" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack"]
+layout_mode = 2
+theme_override_constants/separation = 7
+
+[node name="HullLabel" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/HullStatusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(70, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.9, 0.58, 1)
+theme_override_font_sizes/font_size = 12
+text = "INTEGRITY"
+
+[node name="HullBar" type="ProgressBar" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/HullStatusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(210, 9)
+layout_mode = 2
+size_flags_vertical = 4
+theme_override_styles/background = SubResource("StyleStatusBack")
+theme_override_styles/fill = SubResource("StyleHullFill")
+max_value = 100.0
+value = 100.0
+show_percentage = false
+
+[node name="HullValue" type="Label" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus/StatusStack/HullStatusRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(54, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.82, 0.66, 1)
+theme_override_font_sizes/font_size = 11
+text = "100%"
+
+[node name="SpeedGauge" type="Control" parent="Layout/Header/HeaderMargin/HeaderRow/CommandStatus"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(92, 56)
+layout_mode = 2
+script = ExtResource("26_speed_gauge")
+
+[node name="Spacer" type="Control" parent="Layout/Header/HeaderMargin/HeaderRow"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ModeSelector" type="PanelContainer" parent="Layout/Header/HeaderMargin/HeaderRow"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleModeRail")
+
+[node name="ModeSelectorLayer" type="Control" parent="Layout/Header/HeaderMargin/HeaderRow/ModeSelector"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(102, 40)
+layout_mode = 2
+
+[node name="ModeSelectorLight" type="Panel" parent="Layout/Header/HeaderMargin/HeaderRow/ModeSelector/ModeSelectorLayer"]
+unique_name_in_owner = true
+layout_mode = 0
+offset_left = 4.0
+offset_top = 3.0
+offset_right = 98.0
+offset_bottom = 37.0
+mouse_filter = 2
+theme_override_styles/panel = SubResource("StyleModeSelectorLight")
+
+[node name="ModeButtons" type="HBoxContainer" parent="Layout/Header/HeaderMargin/HeaderRow/ModeSelector/ModeSelectorLayer"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 4.0
+offset_top = 3.0
+offset_right = -4.0
+offset_bottom = -3.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 4
+alignment = 2
+
+[node name="ShipButton" type="Button" parent="Layout/Header/HeaderMargin/HeaderRow/ModeSelector/ModeSelectorLayer/ModeButtons"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(94, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.82, 0.84, 1)
+theme_override_colors/font_pressed_color = Color(0.92, 1, 0.98, 1)
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleButtonNormal")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover_pressed = SubResource("StyleButtonPressed")
+toggle_mode = true
+text = "01  COMMAND"
+
+[node name="SettlementButton" type="Button" parent="Layout/Header/HeaderMargin/HeaderRow/ModeSelector/ModeSelectorLayer/ModeButtons"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(94, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.82, 0.84, 1)
+theme_override_colors/font_pressed_color = Color(0.92, 1, 0.98, 1)
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleButtonNormal")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover_pressed = SubResource("StyleButtonPressed")
+toggle_mode = true
+text = "02  DECK"
+
+[node name="CrewButton" type="Button" parent="Layout/Header/HeaderMargin/HeaderRow/ModeSelector/ModeSelectorLayer/ModeButtons"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(94, 34)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.82, 0.84, 1)
+theme_override_colors/font_pressed_color = Color(0.92, 1, 0.98, 1)
+theme_override_font_sizes/font_size = 11
+theme_override_styles/normal = SubResource("StyleButtonNormal")
+theme_override_styles/hover = SubResource("StyleButtonHover")
+theme_override_styles/pressed = SubResource("StyleButtonPressed")
+theme_override_styles/hover_pressed = SubResource("StyleButtonPressed")
+toggle_mode = true
+text = "03  CREW"
+
+[node name="ContentPanel" type="PanelContainer" parent="Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+clip_contents = true
+theme_override_styles/panel = SubResource("StyleContent")
+
+[node name="ContentHost" type="MarginContainer" parent="Layout/ContentPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
+
+[node name="Footer" type="PanelContainer" parent="Layout"]
+custom_minimum_size = Vector2(0, 34)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleFooter")
+
+[node name="FooterText" type="Label" parent="Layout/Footer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.4, 0.46, 1)
+theme_override_font_sizes/font_size = 11
+text = "  COURSE: RIGHT CLICK     HEADING LOCK: ALT + RIGHT CLICK     TURN: HOLD + RIGHT DRAG     ROUTE: SHIFT + RIGHT CLICK"
+vertical_alignment = 1
+
+[node name="LogisticsOverlay" type="CanvasLayer" parent="."]
+layer = 45
+
+[node name="LogisticsToggle" type="Button" parent="LogisticsOverlay"]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 20.0
+offset_top = 74.0
+offset_right = 132.0
+offset_bottom = 104.0
+toggle_mode = true
+theme_override_colors/font_color = Color(0.45, 0.9, 0.82, 1)
+theme_override_colors/font_hover_color = Color(0.72, 1, 0.94, 1)
+theme_override_font_sizes/font_size = 11
+text = "PARTS LOCKER >"
+tooltip_text = "CLICK • OPEN RECOVERED GRID INVENTORY"
+
+[node name="LogisticsOverviewPanel" type="PanelContainer" parent="LogisticsOverlay"]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 20.0
+offset_top = 110.0
+offset_right = 450.0
+offset_bottom = 485.0
+theme_override_styles/panel = SubResource("StyleLogistics")
+script = ExtResource("20_crt")
+
+[node name="Margin" type="MarginContainer" parent="LogisticsOverlay/LogisticsOverviewPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Controls" type="VBoxContainer" parent="LogisticsOverlay/LogisticsOverviewPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="LogisticsOverlay/LogisticsOverviewPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.96, 0.86, 1)
+theme_override_font_sizes/font_size = 18
+text = "SERVICE NETWORK"
+
+[node name="Subtitle" type="Label" parent="LogisticsOverlay/LogisticsOverviewPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.28, 0.62, 0.6, 1)
+theme_override_font_sizes/font_size = 10
+text = "INSTALLED ROOMS • CREW ACCESS • RESPONSE READINESS"
+
+[node name="LogisticsOverviewStatus" type="Label" parent="LogisticsOverlay/LogisticsOverviewPanel/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 82)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.76, 0.7, 1)
+theme_override_font_sizes/font_size = 10
+text = "SCANNING SHIP SERVICE GRID..."
+autowrap_mode = 2
+
+[node name="LogisticsSuppliesButton" type="Button" parent="LogisticsOverlay/LogisticsOverviewPanel/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.96, 0.9, 1)
+theme_override_styles/normal = SubResource("StyleLogisticsButton")
+theme_override_styles/hover = SubResource("StyleLogisticsButtonHover")
+theme_override_styles/pressed = SubResource("StyleLogisticsButtonHover")
+text = "ENGINEERING SERVICES  >"
+
+[node name="LogisticsCargoButton" type="Button" parent="LogisticsOverlay/LogisticsOverviewPanel/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 42)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.72, 0.96, 0.9, 1)
+theme_override_styles/normal = SubResource("StyleLogisticsButton")
+theme_override_styles/hover = SubResource("StyleLogisticsButtonHover")
+theme_override_styles/pressed = SubResource("StyleLogisticsButtonHover")
+text = "CREW SERVICES  >"
+
+[node name="LogisticsManifestPanel" type="PanelContainer" parent="LogisticsOverlay"]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 366.0
+offset_top = 118.0
+offset_right = 766.0
+offset_bottom = 625.0
+theme_override_styles/panel = SubResource("StyleLogistics")
+script = ExtResource("20_crt")
+
+[node name="Margin" type="MarginContainer" parent="LogisticsOverlay/LogisticsManifestPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Controls" type="VBoxContainer" parent="LogisticsOverlay/LogisticsManifestPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="LogisticsManifestTitle" type="Label" parent="LogisticsOverlay/LogisticsManifestPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.96, 0.86, 1)
+theme_override_font_sizes/font_size = 16
+text = "SERVICE PROVIDERS"
+
+[node name="LogisticsManifestSummary" type="Label" parent="LogisticsOverlay/LogisticsManifestPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.76, 0.7, 1)
+theme_override_font_sizes/font_size = 10
+text = "0 INSTALLED • 0 ONLINE"
+
+[node name="ManifestFrame" type="PanelContainer" parent="LogisticsOverlay/LogisticsManifestPanel/Margin/Controls"]
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_styles/panel = SubResource("StyleLogisticsInner")
+
+[node name="Scroll" type="ScrollContainer" parent="LogisticsOverlay/LogisticsManifestPanel/Margin/Controls/ManifestFrame"]
+custom_minimum_size = Vector2(0, 350)
+layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="LogisticsManifestList" type="GridContainer" parent="LogisticsOverlay/LogisticsManifestPanel/Margin/Controls/ManifestFrame/Scroll"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 8
+columns = 3
+
+[node name="LogisticsManifestBackButton" type="Button" parent="LogisticsOverlay/LogisticsManifestPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleLogisticsButton")
+theme_override_styles/hover = SubResource("StyleLogisticsButtonHover")
+text = "<  BACK TO OVERVIEW"
+
+[node name="LogisticsDetailPanel" type="PanelContainer" parent="LogisticsOverlay"]
+unique_name_in_owner = true
+layout_mode = 1
+offset_left = 782.0
+offset_top = 146.0
+offset_right = 1160.0
+offset_bottom = 590.0
+theme_override_styles/panel = SubResource("StyleLogistics")
+script = ExtResource("20_crt")
+
+[node name="Margin" type="MarginContainer" parent="LogisticsOverlay/LogisticsDetailPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Controls" type="VBoxContainer" parent="LogisticsOverlay/LogisticsDetailPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="DetailHeader" type="HBoxContainer" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="LogisticsDetailIconFrame" type="PanelContainer" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls/DetailHeader"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(74, 74)
+layout_mode = 2
+theme_override_styles/panel = SubResource("StyleLogisticsThumb")
+
+[node name="LogisticsDetailIcon" type="TextureRect" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls/DetailHeader/LogisticsDetailIconFrame"]
+unique_name_in_owner = true
+layout_mode = 2
+expand_mode = 1
+stretch_mode = 5
+
+[node name="LogisticsDetailGlyph" type="Label" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls/DetailHeader/LogisticsDetailIconFrame"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.68, 0.98, 0.9, 1)
+theme_override_font_sizes/font_size = 15
+text = "ITEM"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="DetailTitleStack" type="VBoxContainer" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls/DetailHeader"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 3
+
+[node name="LogisticsDetailTitle" type="Label" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls/DetailHeader/DetailTitleStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.48, 0.96, 0.86, 1)
+theme_override_font_sizes/font_size = 16
+text = "ITEM DETAIL"
+
+[node name="LogisticsDetailMeta" type="Label" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls/DetailHeader/DetailTitleStack"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.38, 0.72, 0.68, 1)
+theme_override_font_sizes/font_size = 10
+text = "NO ITEM SELECTED"
+
+[node name="LogisticsDetailText" type="Label" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 275)
+layout_mode = 2
+size_flags_vertical = 3
+theme_override_colors/font_color = Color(0.62, 0.79, 0.74, 1)
+theme_override_font_sizes/font_size = 10
+text = "NO ITEM SELECTED"
+autowrap_mode = 2
+
+[node name="LogisticsDetailBackButton" type="Button" parent="LogisticsOverlay/LogisticsDetailPanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_styles/normal = SubResource("StyleLogisticsButton")
+theme_override_styles/hover = SubResource("StyleLogisticsButtonHover")
+text = "<  BACK TO SERVICES"
+
+[node name="ForgeOverlay" type="CanvasLayer" parent="."]
+layer = 50
+
+[node name="ForgeToggle" type="Button" parent="ForgeOverlay"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -116.0
+offset_top = 74.0
+offset_right = -20.0
+offset_bottom = 104.0
+grow_horizontal = 0
+toggle_mode = true
+theme_override_colors/font_color = Color(0.88, 0.58, 0.96, 1)
+theme_override_colors/font_hover_color = Color(1, 0.78, 1, 1)
+theme_override_font_sizes/font_size = 11
+text = "FORGE >"
+tooltip_text = "EDGE CHANNEL • OPEN BLACKSITE CONSOLE"
+
+[node name="ForgeActiveIndicator" type="Button" parent="ForgeOverlay"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -366.0
+offset_top = 74.0
+offset_right = -124.0
+offset_bottom = 104.0
+grow_horizontal = 0
+theme_override_colors/font_color = Color(0.96, 0.64, 1, 1)
+theme_override_colors/font_hover_color = Color(1, 0.82, 1, 1)
+theme_override_font_sizes/font_size = 10
+theme_override_styles/normal = SubResource("StyleForge")
+theme_override_styles/hover = SubResource("StyleForge")
+text = "● STRUCTURAL TEST • ACTIVE"
+tooltip_text = "CLICK • DISENGAGE TOOL"
+
+[node name="ForgePanel" type="PanelContainer" parent="ForgeOverlay"]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -344.0
+offset_top = 110.0
+offset_right = -20.0
+offset_bottom = 662.0
+grow_horizontal = 0
+theme_override_styles/panel = SubResource("StyleForge")
+script = ExtResource("20_crt")
+
+[node name="Margin" type="MarginContainer" parent="ForgeOverlay/ForgePanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 14
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 14
+theme_override_constants/margin_bottom = 12
+
+[node name="Controls" type="VBoxContainer" parent="ForgeOverlay/ForgePanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.58, 0.98, 1)
+theme_override_font_sizes/font_size = 18
+text = "FORGE • BLACKSITE CONTROL"
+
+[node name="Warning" type="Label" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.66, 0.42, 0.72, 1)
+theme_override_font_sizes/font_size = 9
+text = "UNREGISTERED COMMAND CHANNEL • LIVE"
+
+[node name="ConstructionTitle" type="Label" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.66, 0.24, 1)
+theme_override_font_sizes/font_size = 10
+text = "HULL FABRICATION"
+
+[node name="ForgeShipEditorButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+theme_override_styles/pressed = SubResource("StyleForgeControlHover")
+text = "> HULL GRID • STANDBY"
+tooltip_text = "CLICK • EDIT DECK GRID"
+
+[node name="ForgeStructuralTestButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+toggle_mode = true
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+theme_override_styles/pressed = SubResource("StyleForgeControlHover")
+text = "> DAMAGE LAB • STANDBY"
+tooltip_text = "CLICK • TEST HULL DAMAGE"
+
+[node name="ForgeMaxCrewButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> CREW MUSTER • FILL ALL BERTHS"
+tooltip_text = "DEV COMMAND • FILL EVERY OPEN BERTH"
+
+[node name="ForgeStarterDraftButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> HANGAR THEFT PROTOCOL"
+tooltip_text = "DEV COMMAND • GENERATE THREE STARTING HULLS"
+
+[node name="ForgeStartRunButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_colors/font_color = Color(1, 0.62, 0.18, 1)
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> START RUN • BLACKSITE ESCAPE"
+tooltip_text = "BEGIN A FRESH ROGUELITE RUN"
+
+[node name="CombatTitle" type="Label" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.66, 0.24, 1)
+theme_override_font_sizes/font_size = 10
+text = "THREAT PROJECTION"
+
+[node name="ForgeEnemyBehavior" type="OptionButton" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+tooltip_text = "SETS NEW ENEMY BEHAVIOR"
+
+[node name="ForgeSpawnCopyButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> PROJECT MIRROR CONTACT"
+
+[node name="ForgeSampleShip" type="OptionButton" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+tooltip_text = "SELECT TEST SHIP"
+
+[node name="ForgeSpawnSampleButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> PROJECT ARCHIVED CONTACT"
+
+[node name="ForgeClearEnemiesButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> PURGE HOSTILE CONTACTS"
+
+[node name="SalvageTitle" type="Label" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.95, 0.66, 0.24, 1)
+theme_override_font_sizes/font_size = 10
+text = "SALVAGE INJECTION"
+
+[node name="ForgeSpawnGridPickupButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+alignment = 0
+theme_override_font_sizes/font_size = 12
+theme_override_styles/normal = SubResource("StyleForgeControl")
+theme_override_styles/hover = SubResource("StyleForgeControlHover")
+text = "> VENT RANDOM GRID RELIC"
+tooltip_text = "SPAWN A COLLECTIBLE GRID NEAR THE PLAYER"
+
+[node name="ForgeStatus" type="Label" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.56, 0.78, 0.74, 1)
+theme_override_font_sizes/font_size = 10
+text = "TRACKED CONTACTS • 0"

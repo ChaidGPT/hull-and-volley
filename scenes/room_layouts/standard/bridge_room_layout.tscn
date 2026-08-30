@@ -1,0 +1,82 @@
+[gd_scene format=3 uid="uid://cs1uok833nm36"]
+
+[ext_resource type="Script" uid="uid://yh120gljm1a7" path="res://scripts/room_crew_layout.gd" id="1_layout"]
+[ext_resource type="Texture2D" uid="uid://cp5oc5j4fcy3h" path="res://assets/sprites/interiors/rooms/standard/overlays/bridge.png" id="2_art"]
+[ext_resource type="Script" uid="uid://b8sdxrdin06yf" path="res://scripts/room_layout_obstacle.gd" id="3_obstacle"]
+
+[node name="BridgeCrewLayout" type="Node2D" unique_id=2056976343]
+script = ExtResource("1_layout")
+forbidden_door_edges = 1
+
+[node name="RoomArt" type="Sprite2D" parent="." unique_id=1040120222]
+modulate = Color(1, 1, 1, 0.55)
+texture = ExtResource("2_art")
+
+[node name="Obstacles" type="Node2D" parent="." unique_id=1912917019]
+
+[node name="ForwardConsole" type="Polygon2D" parent="Obstacles" unique_id=2144339022]
+position = Vector2(0, -60)
+color = Color(1, 0.24, 0.16, 0.18)
+polygon = PackedVector2Array(-48, -4, 47, -4, 32, 12, -32, 12)
+script = ExtResource("3_obstacle")
+
+[node name="CommandConsole" type="Polygon2D" parent="Obstacles" unique_id=1622550755]
+position = Vector2(0, -3)
+color = Color(1, 0.24, 0.16, 0.18)
+polygon = PackedVector2Array(0, -13, 18, 4, 25, 10, 17, 19, -17, 19, -25, 9, -19, 5)
+script = ExtResource("3_obstacle")
+
+[node name="ManningLocations" type="Node2D" parent="." unique_id=722772572]
+
+[node name="ForwardPort" type="Marker2D" parent="ManningLocations" unique_id=988372634]
+position = Vector2(-22, -35)
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/ForwardPort" unique_id=107325737]
+position = Vector2(0, 12)
+
+[node name="ForwardStarboard" type="Marker2D" parent="ManningLocations" unique_id=2066429159]
+position = Vector2(18, -35)
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/ForwardStarboard" unique_id=1249904623]
+position = Vector2(0, 12)
+
+[node name="CenterPort" type="Marker2D" parent="ManningLocations" unique_id=231042758]
+position = Vector2(-38, -6)
+rotation = 1.570796
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/CenterPort" unique_id=574720482]
+position = Vector2(0, 18)
+
+[node name="CenterStarboard" type="Marker2D" parent="ManningLocations" unique_id=6754137]
+position = Vector2(38, -7)
+rotation = -1.570796
+
+[node name="Approach" type="Marker2D" parent="ManningLocations/CenterStarboard" unique_id=1704365419]
+position = Vector2(0, 18)
+
+[node name="IdleLocations" type="Node2D" parent="." unique_id=1443419045]
+
+[node name="AftPort" type="Marker2D" parent="IdleLocations" unique_id=1428255868]
+position = Vector2(-43, 48)
+
+[node name="AftStarboard" type="Marker2D" parent="IdleLocations" unique_id=1094834966]
+position = Vector2(43, 48)
+
+[node name="DoorApproaches" type="Node2D" parent="." unique_id=745801440]
+
+[node name="North" type="Marker2D" parent="DoorApproaches" unique_id=883269806]
+position = Vector2(0, -58)
+
+[node name="East" type="Marker2D" parent="DoorApproaches" unique_id=343878491]
+position = Vector2(58, 0)
+
+[node name="South" type="Marker2D" parent="DoorApproaches" unique_id=2068852277]
+position = Vector2(0, 58)
+
+[node name="West" type="Marker2D" parent="DoorApproaches" unique_id=2032628171]
+position = Vector2(-58, 0)
+
+[node name="SpecialLocations" type="Node2D" parent="." unique_id=1292883336]
+
+[node name="Captain" type="Marker2D" parent="SpecialLocations" unique_id=845527435]
+position = Vector2(0, 24)

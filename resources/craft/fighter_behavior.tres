@@ -1,0 +1,46 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/fighter_behavior_definition.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/craft/fighter_visual.tscn" id="2"]
+[ext_resource type="Resource" path="res://resources/weapons/fighter_autocannon.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+display_name = "CARRIER INTERCEPTOR"
+visual_scene = ExtResource("2")
+visual_scale = 0.2
+collision_radius = 3.0
+maximum_hull = 12.0
+maximum_speed = 145.0
+acceleration = 95.0
+turn_speed_degrees = 110.0
+lateral_damping = 0.65
+flight_drag = 0.08
+guidance_turn_degrees = 75.0
+minimum_turn_throttle = 0.42
+attack_orbit_distance = 125.0
+dogfight_distance = 55.0
+recovery_distance = 28.0
+launch_clearance_time = 0.7
+launch_speed = 105.0
+attack_run_entry_distance = 220.0
+attack_run_entry_degrees = 18.0
+attack_run_duration = 1.15
+breakaway_duration = 0.85
+reposition_distance = 190.0
+reposition_timeout = 2.5
+intercept_lead_seconds = 0.3
+avoidance_lookahead = 190.0
+avoidance_whisker_degrees = 35.0
+avoidance_strength = 2.4
+capital_breakaway_distance = 115.0
+capital_safety_margin = 95.0
+emergency_avoidance_thrust = 1.8
+docking_approach_distance = 90.0
+docking_approach_radius = 24.0
+docking_capture_distance = 12.0
+target_lock_seconds = 1.4
+behavior_variation = 0.16
+maximum_commit_delay = 0.65
+weapon = ExtResource("3")
+firing_alignment_degrees = 6.0
