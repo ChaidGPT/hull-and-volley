@@ -420,9 +420,21 @@ func refresh_work_slots(layout: Resource) -> void:
 
 
 func _reconcile_crew_after_layout_change(structure: ShipStructuralState) -> void:
+	# Refit can rebuild the door dictionaries while a crew member is physically
+	# inside a threshold. Door stage and reservation data belongs to the old
+	# topology, so resume everyone from a certified room-side landing instead of
+	# carrying a half-finished crossing into the new hull.
+	for held_door_value: Variant in crew_held_doors.keys():
+		var held_door_id := String(held_door_value)
+		if structure.doors.has(held_door_id):
+			structure.request_hazard_door_override(held_door_id, false)
+			structure.request_door_open(held_door_id, false)
+	crew_held_doors.clear()
+	doorway_reservations.clear()
 	for member: Dictionary in crew_members:
 		if bool(member.get("ejected", false)):
 			continue
+		_stabilize_member_after_layout_change(member, structure)
 		var current_cell: Vector2i = member.get("current_cell", Vector2i.ZERO)
 		if not structure.cell_rooms.has(current_cell):
 			var rescued_cell := _nearest_existing_cell(structure, member.get("position", Vector2.ZERO))
@@ -478,6 +490,49 @@ func _reconcile_crew_after_layout_change(structure: ShipStructuralState) -> void
 		if cleaned_path.size() != (member.get("path", []) as Array).size():
 			member["path"] = cleaned_path
 			member["path_index"] = mini(int(member.get("path_index", 0)), cleaned_path.size())
+
+
+func _stabilize_member_after_layout_change(member: Dictionary, structure: ShipStructuralState) -> void:
+	var current_cell: Vector2i = member.get("current_cell", Vector2i.ZERO)
+	if not structure.cell_rooms.has(current_cell):
+		_clear_member_door_crossing_state(member)
+		return
+	var crossing_door_id := String(member.get("door_crossing_id", ""))
+	if crossing_door_id.is_empty():
+		# Defensive fallback for saves or old runtime states where crossing metadata
+		# was already lost even though the visual body still occupies a threshold.
+		var member_position := Vector2(member.get("position", Vector2.ZERO))
+		for door_value: Variant in structure.doors.values():
+			var door: Dictionary = door_value
+			var cells: Array = door.get("cells", [])
+			if not cells.has(current_cell):
+				continue
+			var candidate_id := String(door.get("id", ""))
+			if member_position.distance_to(structure.get_door_center(candidate_id)) <= 0.18:
+				crossing_door_id = candidate_id
+				break
+	if crossing_door_id.is_empty():
+		return
+	var clearance := CREW_BODY_CLEARANCE * 2.0
+	var safe_position := _safe_cell_navigation_point(structure.layout, current_cell)
+	if structure.doors.has(crossing_door_id):
+		var room_side_landing := structure.get_door_approach_point(
+			crossing_door_id,
+			current_cell,
+			maxf(clearance, 0.16)
+		)
+		if not _position_blocked_by_furniture(room_side_landing):
+			safe_position = room_side_landing
+	member["position"] = safe_position
+	member["state"] = "ROUTE RECALIBRATED"
+	_clear_member_door_crossing_state(member, crossing_door_id)
+	member.erase("furniture_waypoint")
+	member.erase("furniture_navigation_leg")
+	member.erase("blocked_navigation_time")
+	member.erase("navigation_progress_target")
+	member.erase("navigation_progress_best_distance")
+	member.erase("navigation_stall_time")
+	member.erase("navigation_recovery_count")
 
 
 func _nearest_existing_cell(structure: ShipStructuralState, logical_position: Vector2) -> Vector2i:
@@ -1517,6 +1572,22 @@ func _update_member(member: Dictionary, structure: ShipStructuralState, delta: f
 		member.erase("furniture_waypoint")
 		member["state"] = "REPLANNING"
 		_reset_navigation_progress(member, target_position)
+		# Waiting for a closed/interlocked door returns above and never reaches this
+		# watchdog. Reaching it during a crossing therefore means the body is truly
+		# pinned at the jamb. Finish the already-authorized threshold traversal onto
+		# a generated room-side landing so a doorway can never become a parking spot.
+		if not door_id.is_empty():
+			_recover_stalled_door_crossing(
+				member,
+				structure,
+				door_id,
+				current_cell,
+				next_cell,
+				path_index,
+				door_stage,
+				body_clearance
+			)
+			return
 		# Repeating the same final approach can never fix a station which became
 		# unreachable after two modules merged or authored furniture changed. On
 		# the second failed approach, move only across a verified-clear segment to
@@ -1565,6 +1636,61 @@ func _update_member(member: Dictionary, structure: ShipStructuralState, delta: f
 			doorway_reservations.erase(door_id)
 		if int(member["path_index"]) >= path.size():
 			_arrive_at_assignment(member)
+
+
+func _recover_stalled_door_crossing(
+	member: Dictionary,
+	structure: ShipStructuralState,
+	door_id: String,
+	current_cell: Vector2i,
+	next_cell: Vector2i,
+	path_index: int,
+	door_stage: int,
+	body_clearance: float
+) -> void:
+	if door_stage <= 0:
+		member["position"] = structure.get_door_approach_point(
+			door_id,
+			current_cell,
+			maxf(body_clearance * 2.0, 0.16)
+		)
+		member["door_crossing_stage"] = 1
+		member["state"] = "DOORWAY RECOVERED"
+		_reset_navigation_progress(member, Vector2(member["position"]))
+		return
+	member["position"] = structure.get_door_approach_point(
+		door_id,
+		next_cell,
+		maxf(body_clearance * 2.0, 0.30)
+	)
+	member["current_cell"] = next_cell
+	member["path_index"] = path_index + 1
+	member["state"] = "DOORWAY RECOVERED"
+	_clear_member_door_crossing_state(member, door_id)
+	member.erase("furniture_waypoint")
+	member.erase("furniture_navigation_leg")
+	member.erase("blocked_navigation_time")
+	member.erase("navigation_progress_target")
+	member.erase("navigation_progress_best_distance")
+	member.erase("navigation_stall_time")
+	member.erase("navigation_recovery_count")
+	if int(member["path_index"]) >= (member.get("path", []) as Array).size():
+		_arrive_at_assignment(member)
+
+
+func _clear_member_door_crossing_state(member: Dictionary, door_id: String = "") -> void:
+	var released_door_id := door_id
+	if released_door_id.is_empty():
+		released_door_id = String(member.get("door_crossing_id", ""))
+	if (
+		not released_door_id.is_empty()
+		and int(doorway_reservations.get(released_door_id, 0)) == int(member.get("id", 0))
+	):
+		doorway_reservations.erase(released_door_id)
+	member.erase("door_crossing_key")
+	member.erase("door_crossing_stage")
+	member.erase("door_crossing_id")
+	member.erase("door_crossing_hazard")
 
 
 func _authored_station_route_target(member: Dictionary, slot: Dictionary, fallback: Vector2) -> Vector2:

@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/ship_contact_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/ship_designs/small_ship_2.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+ship_id = &"carrier_escort"
+display_name = "CARRIER ESCORT"
+description = "A compact Shipyard-built escort that exploits directional thrust and forward firepower."
+ship_layout = ExtResource("2")
+tactical_tint = Color(0.72, 0.86, 1, 1)
+default_behavior = 1

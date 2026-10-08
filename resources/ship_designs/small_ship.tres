@@ -1,0 +1,359 @@
+[gd_resource type="Resource" script_class="ShipLayoutResource" format=3]
+
+[ext_resource type="Resource" path="res://resources/module_recipes/light_ballistic_mount.tres" id="1_naxbi"]
+[ext_resource type="Resource" path="res://resources/module_recipes/heavy_ballistic_mount.tres" id="2_jwh16"]
+[ext_resource type="Resource" path="res://resources/module_recipes/massive_forward_laser.tres" id="3_j71l6"]
+[ext_resource type="Resource" path="res://resources/module_recipes/explosive_cannon_mount.tres" id="4_otui3"]
+[ext_resource type="Resource" path="res://resources/module_recipes/laser_emitter_mount.tres" id="5_aihwo"]
+[ext_resource type="Resource" path="res://resources/module_recipes/plasma_projector_mount.tres" id="6_6tkd2"]
+[ext_resource type="Resource" path="res://resources/module_recipes/missile_launcher_mount.tres" id="7_bfa7h"]
+[ext_resource type="Resource" path="res://resources/module_recipes/compact_craft_bay.tres" id="8_edtks"]
+[ext_resource type="Resource" path="res://resources/module_recipes/expanded_multi_role_hangar.tres" id="9_yd575"]
+[ext_resource type="Resource" path="res://resources/module_recipes/fleet_service_hangar.tres" id="10_u53te"]
+[ext_resource type="Resource" path="res://resources/module_recipes/heavy_explosive_cannon_mount.tres" id="11_yxsco"]
+[ext_resource type="Resource" path="res://resources/economy/default_resource_catalog.tres" id="12_8jr24"]
+[ext_resource type="Script" path="res://scripts/resources/room_layout_data.gd" id="13_ijmue"]
+[ext_resource type="Resource" path="res://resources/weapons/longshot_cannon.tres" id="14_g3mgw"]
+[ext_resource type="Script" path="res://scripts/resources/grid_build_requirement.gd" id="15_doqg3"]
+[ext_resource type="AudioStream" path="res://assets/audio/weapons/prunus/scifi_weapon_big.ogg" id="16_5c4e2"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/impact_sprite_heavy.tscn" id="17_h2g50"]
+[ext_resource type="AudioStream" path="res://assets/audio/sfx/scifi_hit_large_01.mp3" id="18_xh5rv"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/explosive_cannon_mount_visual.tscn" id="19_2tdrw"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/longshot_projectile.tscn" id="20_ppo0b"]
+[ext_resource type="Script" path="res://scripts/resources/weapon_definition.gd" id="21_tbqax"]
+[ext_resource type="AudioStream" path="res://assets/audio/weapons/prunus/scifi_weapon_small.ogg" id="22_i2uh2"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/impact_sprite_small.tscn" id="23_ueaid"]
+[ext_resource type="PackedScene" path="res://scenes/weapons/light_ballistic_mount_visual.tscn" id="24_ci434"]
+[ext_resource type="PackedScene" path="res://scenes/projectiles/traverse_projectile.tscn" id="25_1d37d"]
+[ext_resource type="Script" path="res://scripts/resources/ship_layout_resource.gd" id="26_76a0u"]
+[ext_resource type="Resource" path="res://resources/weapons/traverse_gun.tres" id="27_kxtms"]
+[ext_resource type="Resource" path="res://resources/weapons/laser_emitter.tres" id="28_1d2m0"]
+[ext_resource type="Resource" path="res://resources/weapons/plasma_projector.tres" id="29_a2jyq"]
+[ext_resource type="Resource" path="res://resources/weapons/missile_launcher.tres" id="30_e5un0"]
+
+[sub_resource type="Resource" id="Resource_naxbi"]
+script = ExtResource("13_ijmue")
+room_id = &"bridge"
+display_name = "BRIDGE"
+type_name = "COMMAND"
+grid_rects = Array[Rect2i]([Rect2i(0, 0, 2, 2)])
+color = Color(0.13, 0.38, 0.42, 1)
+maximum_health = 80.0
+
+[sub_resource type="Resource" id="Resource_jwh16"]
+script = ExtResource("13_ijmue")
+room_id = &"unassigned"
+display_name = "UNASSIGNED COMPARTMENT"
+grid_rects = Array[Rect2i]([Rect2i(1, 2, 2, 1), Rect2i(1, 3, 1, 1), Rect2i(1, 4, 1, 1), Rect2i(3, 4, 1, 1)])
+color = Color(0.16, 0.19, 0.2, 1)
+maximum_health = 120.0
+produces_output = false
+
+[sub_resource type="Resource" id="Resource_j71l6"]
+script = ExtResource("13_ijmue")
+room_id = &"port_engine"
+display_name = "AFT THRUSTER"
+type_name = "PROPULSION"
+effect_label = "THRUST OUTPUT"
+grid_rects = Array[Rect2i]([Rect2i(0, 6, 2, 2)])
+color = Color(0.4, 0.18, 0.12, 1)
+maximum_health = 50.0
+module_facing_quarters = 2
+
+[sub_resource type="Resource" id="Resource_otui3"]
+script = ExtResource("13_ijmue")
+room_id = &"port_forward_weapon"
+display_name = "PORT FORWARD WEAPON"
+type_name = "WEAPONS"
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(0, 1, 1, 1)])
+color = Color(0.38, 0.24, 0.12, 1)
+maximum_health = 20.0
+weapon_definition = ExtResource("14_g3mgw")
+
+[sub_resource type="Resource" id="Resource_aihwo"]
+script = ExtResource("13_ijmue")
+room_id = &"type_crew_quarters"
+display_name = "CREW QUARTERS"
+type_name = "CREW_QUARTERS"
+effect_label = "CREW CAPACITY / MORALE"
+description = "Housing for off-duty crew. Increases maximum crew capacity and supports crew morale."
+color = Color(0.27, 0.2, 0.38, 1)
+maximum_health = 80.0
+
+[sub_resource type="Resource" id="Resource_6tkd2"]
+script = ExtResource("13_ijmue")
+room_id = &"type_security"
+display_name = "SECURITY"
+type_name = "SECURITY"
+effect_label = "BOARDING DEFENSE / ORDER"
+description = "Coordinates armed response to boarders and helps contain unrest among the crew."
+color = Color(0.34, 0.13, 0.15, 1)
+
+[sub_resource type="Resource" id="Resource_bfa7h"]
+script = ExtResource("15_doqg3")
+display_name = "REACTOR REQUIRED"
+description = "This system needs a reactor installed somewhere in the ship before the grid can be built."
+scope = 1
+required_grid_types = PackedStringArray()
+
+[sub_resource type="Resource" id="Resource_edtks"]
+script = ExtResource("13_ijmue")
+room_id = &"type_shield_generator"
+display_name = "SHIELD GENERATOR"
+type_name = "SHIELDS"
+effect_label = "SHIELD CAPACITY / REGEN"
+description = "Generates the ship's defensive field. Room size and staffing will determine shield capacity and regeneration."
+color = Color(0.08, 0.3, 0.38, 1)
+build_requirements = Array[Resource]([SubResource("Resource_bfa7h")])
+
+[sub_resource type="Resource" id="Resource_yd575"]
+script = ExtResource("13_ijmue")
+room_id = &"type_reactor"
+display_name = "REACTOR"
+type_name = "POWER"
+effect_label = "POWER GENERATION"
+description = "Projects an unlimited local power field. Damage can weaken or collapse its coverage."
+color = Color(0.4, 0.3, 0.08, 1)
+maximum_health = 120.0
+
+[sub_resource type="Resource" id="Resource_u53te"]
+script = ExtResource("15_doqg3")
+display_name = "CREW SUPPORT REQUIRED"
+description = "This compartment must touch crew quarters before the grid can be built."
+scope = 2
+required_grid_types = PackedStringArray()
+
+[sub_resource type="Resource" id="Resource_yxsco"]
+script = ExtResource("13_ijmue")
+room_id = &"type_medical_bay"
+display_name = "MEDICAL BAY"
+type_name = "MEDICAL"
+effect_label = "HEALING / SURVIVABILITY"
+description = "Treats injured crew and reduces deaths from wounds sustained during combat and accidents."
+color = Color(0.12, 0.34, 0.27, 1)
+maximum_health = 70.0
+build_requirements = Array[Resource]([SubResource("Resource_u53te")])
+
+[sub_resource type="Resource" id="Resource_8jr24"]
+script = ExtResource("13_ijmue")
+room_id = &"type_mess_hall"
+display_name = "MESS HALL"
+type_name = "MESS_HALL"
+effect_label = "MORALE / FOOD EFFICIENCY"
+description = "Feeds the crew and provides a shared social space, improving morale during long voyages."
+color = Color(0.38, 0.27, 0.14, 1)
+maximum_health = 60.0
+
+[sub_resource type="Resource" id="Resource_ijmue"]
+script = ExtResource("13_ijmue")
+room_id = &"type_workshop"
+display_name = "ENGINEERING BAY"
+type_name = "WORKSHOP"
+effect_label = "DAMAGE CONTROL OUTFITTING"
+description = "Outfits responders with repair tools and environmental gear. If this bay is damaged, powerless, unstaffed, or inaccessible, new damage-control teams cannot deploy."
+color = Color(0.36, 0.2, 0.1, 1)
+maximum_health = 90.0
+
+[sub_resource type="Resource" id="Resource_g3mgw"]
+script = ExtResource("13_ijmue")
+room_id = &"type_supply_storage"
+display_name = "LEGACY SUPPLY COMPARTMENT"
+type_name = "SUPPLY_STORAGE"
+effect_label = "OPERATIONAL STORAGE"
+description = "Compatibility compartment from the retired counted-inventory system. New ships use service-providing grids instead."
+grid_label = "SUP"
+color = Color(0.18, 0.31, 0.27, 1)
+maximum_health = 75.0
+storage_role = "SUPPLY"
+storage_capacity_per_cell = 60.0
+
+[sub_resource type="Resource" id="Resource_doqg3"]
+script = ExtResource("13_ijmue")
+room_id = &"type_cargo_hold"
+display_name = "CARGO HOLD"
+type_name = "CARGO"
+effect_label = "STORAGE CAPACITY"
+description = "Bulk freight storage for salvage, ore, trade goods, and materials intended for sale or refining. Cargo is not directly issued to crew."
+color = Color(0.24, 0.25, 0.19, 1)
+storage_role = "CARGO"
+storage_capacity_per_cell = 120.0
+
+[sub_resource type="Resource" id="Resource_5c4e2"]
+script = ExtResource("13_ijmue")
+room_id = &"type_hangar"
+display_name = "HANGAR"
+type_name = "HANGAR"
+effect_label = "CRAFT CAPACITY / LAUNCH RATE"
+description = "Infrastructure for housing, launching, recovering, and servicing carried craft. Installed modules determine capacity and supported craft roles."
+grid_label = "HGR"
+color = Color(0.1, 0.3, 0.32, 1)
+maximum_health = 90.0
+build_requirements = Array[Resource]([SubResource("Resource_bfa7h")])
+
+[sub_resource type="Resource" id="Resource_h2g50"]
+script = ExtResource("13_ijmue")
+room_id = &"type_docking_station"
+display_name = "DOCKING STATION"
+type_name = "DOCKING"
+effect_label = "DOCKING CLAMPS / TRANSFER"
+description = "Heavy docking infrastructure for capital ships, trade transfer, resupply, repairs, and future station services."
+grid_label = "DOCK"
+color = Color(0.58, 0.38, 0.12, 1)
+maximum_health = 120.0
+minimum_crew = 0
+optimal_crew = 0
+
+[sub_resource type="Resource" id="Resource_xh5rv"]
+script = ExtResource("13_ijmue")
+room_id = &"command_46055682"
+display_name = "BRIDGE"
+type_name = "COMMAND"
+grid_rects = Array[Rect2i]([Rect2i(4, 1, 2, 2)])
+color = Color(0.13, 0.38, 0.42, 1)
+maximum_health = 80.0
+module_facing_quarters = 0
+
+[sub_resource type="Resource" id="Resource_2tdrw"]
+script = ExtResource("13_ijmue")
+room_id = &"crew_quarters_52872190"
+display_name = "CREW QUARTERS"
+type_name = "CREW_QUARTERS"
+effect_label = "CREW CAPACITY / MORALE"
+description = "Housing for off-duty crew. Increases maximum crew capacity and supports crew morale."
+grid_rects = Array[Rect2i]([Rect2i(3, 3, 2, 2)])
+color = Color(0.27, 0.2, 0.38, 1)
+maximum_health = 80.0
+
+[sub_resource type="Resource" id="Resource_ppo0b"]
+script = ExtResource("13_ijmue")
+room_id = &"power_55972029"
+display_name = "REACTOR"
+type_name = "POWER"
+effect_label = "POWER GENERATION"
+description = "Projects an unlimited local power field. Damage can weaken or collapse its coverage."
+grid_rects = Array[Rect2i]([Rect2i(5, 3, 2, 2)])
+color = Color(0.4, 0.3, 0.08, 1)
+maximum_health = 120.0
+
+[sub_resource type="Resource" id="Resource_tbqax"]
+script = ExtResource("13_ijmue")
+room_id = &"propulsion_61772202"
+display_name = "THRUSTER SECTION"
+type_name = "PROPULSION"
+effect_label = "THRUST OUTPUT"
+grid_rects = Array[Rect2i]([Rect2i(4, 5, 2, 2)])
+color = Color(0.4, 0.18, 0.12, 1)
+maximum_health = 50.0
+module_facing_quarters = 2
+
+[sub_resource type="Resource" id="Resource_i2uh2"]
+script = ExtResource("21_tbqax")
+weapon_id = &"explosive_cannon"
+display_name = "EXPLOSIVE CANNON"
+description = "A traditional heavy cannon firing explosive shells with excellent reach and a slow reload."
+damage_type = "EXPLOSIVE"
+maximum_range = 1800.0
+damage = 32.0
+shield_damage_multiplier = 0.8
+system_damage_multiplier = 1.2
+breach_damage_multiplier = 1.2
+fighter_damage_multiplier = 0.55
+accuracy_degrees = 1.8
+penetration_power = 42.0
+reload_seconds = 8.0
+projectile_speed = 520.0
+projectile_collision_radius = 0.9375
+projectile_mass = 3.0
+projectile_bounce = 0.03
+blast_radius = 28.0
+visual_color = Color(0.95, 0.55, 0.2, 1)
+projectile_scene = ExtResource("20_ppo0b")
+impact_effect_scene = ExtResource("17_h2g50")
+mount_visual_scene = ExtResource("19_2tdrw")
+firing_sound = ExtResource("16_5c4e2")
+firing_volume_db = -1.0
+firing_pitch_variation = 0.035
+impact_sound = ExtResource("18_xh5rv")
+impact_volume_db = 1.0
+impact_pitch_variation = 0.04
+
+[sub_resource type="Resource" id="Resource_ueaid"]
+script = ExtResource("13_ijmue")
+room_id = &"weapons_72438666"
+display_name = "EXPLOSIVE CANNON MOUNT"
+type_name = "WEAPONS"
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(6, 1, 2, 2)])
+color = Color(0.38, 0.24, 0.12, 1)
+maximum_health = 28.0
+minimum_crew = 2
+optimal_crew = 3
+weapon_definition = SubResource("Resource_i2uh2")
+module_recipe = ExtResource("4_otui3")
+module_facing_quarters = 1
+
+[sub_resource type="Resource" id="Resource_ci434"]
+script = ExtResource("21_tbqax")
+weapon_id = &"ballistic_repeater"
+display_name = "BALLISTIC REPEATER"
+description = "A rapid-fire ballistic weapon with a broad traverse and individually light projectiles."
+weapon_family = "BALLISTIC"
+maximum_range = 950.0
+traverse_degrees = 35.0
+uses_exposed_hull_edges = true
+damage = 2.0
+shield_damage_multiplier = 0.6
+hull_damage_multiplier = 0.35
+system_damage_multiplier = 1.2
+breach_damage_multiplier = 0.05
+fighter_damage_multiplier = 2.0
+accuracy_degrees = 6.0
+penetration_power = 2.0
+reload_seconds = 0.6
+projectile_speed = 760.0
+projectile_collision_radius = 1.75
+projectile_mass = 1.25
+projectile_bounce = 0.08
+visual_color = Color(0.35, 0.82, 0.72, 1)
+projectile_scene = ExtResource("25_1d37d")
+impact_effect_scene = ExtResource("23_ueaid")
+mount_visual_scene = ExtResource("24_ci434")
+firing_sound = ExtResource("22_i2uh2")
+firing_volume_db = -7.0
+firing_pitch_variation = 0.08
+impact_sound = ExtResource("18_xh5rv")
+impact_volume_db = -10.0
+impact_pitch_variation = 0.16
+
+[sub_resource type="Resource" id="Resource_1d37d"]
+script = ExtResource("13_ijmue")
+room_id = &"weapons_78171894"
+display_name = "LIGHT BALLISTIC MOUNT"
+type_name = "WEAPONS"
+description = "An exposed automated point-defense or anti-fighter mount. It requires no crew, but its light exterior housing is easily damaged."
+grid_label = "WPN"
+grid_rects = Array[Rect2i]([Rect2i(3, 1, 1, 1)])
+build_footprint_lattice = Vector2i(1, 1)
+color = Color(0.38, 0.24, 0.12, 1)
+maximum_health = 12.0
+minimum_crew = 0
+optimal_crew = 0
+weapon_definition = SubResource("Resource_ci434")
+module_recipe = ExtResource("1_naxbi")
+module_facing_quarters = 3
+
+[resource]
+script = ExtResource("26_76a0u")
+design_name = "Small Ship"
+lattice_version = 2
+columns = 10
+rows = 10
+unlimited_build_space = false
+core_frame_cells = Array[Vector2i]([Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1), Vector2i(1, 1), Vector2i(0, 2), Vector2i(1, 2), Vector2i(0, 3), Vector2i(1, 3), Vector2i(0, 4), Vector2i(1, 4), Vector2i(0, 5), Vector2i(1, 5), Vector2i(0, 6), Vector2i(1, 6), Vector2i(0, 7), Vector2i(1, 7)])
+core_frame_initialized = true
+room_types = Array[Resource]([SubResource("Resource_naxbi"), SubResource("Resource_jwh16"), SubResource("Resource_j71l6"), SubResource("Resource_otui3"), SubResource("Resource_aihwo"), SubResource("Resource_6tkd2"), SubResource("Resource_edtks"), SubResource("Resource_yd575"), SubResource("Resource_yxsco"), SubResource("Resource_8jr24"), SubResource("Resource_ijmue"), SubResource("Resource_g3mgw"), SubResource("Resource_doqg3"), SubResource("Resource_5c4e2"), SubResource("Resource_h2g50")])
+weapon_types = Array[Resource]([ExtResource("14_g3mgw"), ExtResource("27_kxtms"), ExtResource("28_1d2m0"), ExtResource("29_a2jyq"), ExtResource("30_e5un0")])
+module_recipes = Array[Resource]([ExtResource("1_naxbi"), ExtResource("2_jwh16"), ExtResource("3_j71l6"), ExtResource("4_otui3"), ExtResource("5_aihwo"), ExtResource("6_6tkd2"), ExtResource("7_bfa7h"), ExtResource("8_edtks"), ExtResource("9_yd575"), ExtResource("10_u53te"), ExtResource("11_yxsco")])
+resource_catalog = ExtResource("12_8jr24")
+rooms = Array[Resource]([SubResource("Resource_xh5rv"), SubResource("Resource_2tdrw"), SubResource("Resource_ppo0b"), SubResource("Resource_tbqax"), SubResource("Resource_ueaid"), SubResource("Resource_1d37d")])

@@ -21,7 +21,7 @@ func _init() -> void:
 		var mount_visual := mount_scene.instantiate() as Node2D
 		_check(mount_visual.get_node_or_null("Muzzle") is Marker2D, "mount scene must own a Muzzle marker", failures)
 		_check(mount_visual.get_node_or_null("TurretBase") is Marker2D, "mount scene must expose the center of its round turret base", failures)
-		_check(mount_visual.get_node_or_null("Sprite") is Sprite2D, "mount scene must own its cannon sprite", failures)
+		_check(mount_visual.get_node_or_null("Sprite") is AnimatedSprite2D, "mount scene must own its animated cannon sprite", failures)
 		_check(mount_visual.get_node_or_null("AnimationPlayer") is AnimationPlayer, "mount scene must be ready for authored firing animations", failures)
 		scene_muzzle_offset = Vector2(mount_visual.call("get_authored_muzzle_offset"))
 		_check(scene_muzzle_offset.is_equal_approx(Vector2(0.0, 9.0)), "scene muzzle marker must resolve to the new barrel's exact bottom-center tip", failures)

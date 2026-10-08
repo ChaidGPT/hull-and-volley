@@ -174,6 +174,9 @@ var heading_lock_rotation := 0.0
 var current_shield := 0.0
 var shield_bank_maximums: Dictionary = {}
 var shield_bank_currents: Dictionary = {}
+var shield_bank_recovery_delays: Dictionary = {}
+@export var shield_hit_recovery_delay := 2.0
+@export var shield_break_recovery_delay := 5.0
 var shield_bank_rooms: Dictionary = {}
 var manual_heading_active := false
 var manual_heading_target := Vector2.ZERO
@@ -246,6 +249,12 @@ func _physics_process(delta: float) -> void:
 	previous_ship_position = ship_position
 	previous_ship_rotation = ship_rotation
 	_pull_physics_state()
+	# A destroyed ship remains visually attached to its coasting rigid body until
+	# CombatSimulation completes the staged explosion and breakup sequence.
+	if is_destroyed:
+		if is_instance_valid(physics_body) and physics_body.has_method("set_coast_command"):
+			physics_body.call("set_coast_command")
+		return
 	_refresh_bound_course_points()
 	_refresh_automatic_course_navigation()
 	_update_automatic_course_prediction(delta)
@@ -702,6 +711,36 @@ func _cancel_docking_approach_for_manual_course() -> bool:
 	docking_state_changed.emit(docking_state, cancelled_contact_id)
 	docking_cancelled.emit(cancelled_contact_id)
 	return true
+
+
+## Releases the helm from any phase of a docking sequence when the station can
+## no longer maintain safe clamps or approach control.
+func force_cancel_docking(contact_id: int) -> void:
+	if docking_state == &"IDLE" or docking_contact_id != contact_id:
+		return
+	var cancelled_contact_id := docking_contact_id
+	var release_direction := docking_port_outward.normalized()
+	has_destination = false
+	heading_lock_course_active = false
+	destination_binding.clear()
+	route_waypoints.clear()
+	route_waypoint_bindings.clear()
+	automatic_course_active = false
+	automatic_course_binding.clear()
+	predicted_automatic_course.clear()
+	docking_state = &"IDLE"
+	docking_contact_id = -1
+	docking_station_body = null
+	docking_port_outward = Vector2.ZERO
+	docking_curve_progress = 0.0
+	velocity = release_direction * 18.0
+	if is_instance_valid(physics_body):
+		physics_body.freeze = false
+		physics_body.sleeping = false
+		physics_body.linear_velocity = velocity
+		physics_body.angular_velocity = 0.0
+	docking_state_changed.emit(docking_state, cancelled_contact_id)
+	docking_cancelled.emit(cancelled_contact_id)
 
 
 ## Starts a route plan. Any active destination and queued route are copied first,
@@ -2038,6 +2077,9 @@ func apply_shield_damage(amount: float, impact_world_direction: Vector2 = Vector
 	var bank_current := float(shield_bank_currents.get(bank, 0.0))
 	var absorbed_damage := minf(bank_current, maxf(amount, 0.0))
 	shield_bank_currents[bank] = bank_current - absorbed_damage
+	if amount > 0.0:
+		var delay := shield_break_recovery_delay if absorbed_damage > 0.0 and float(shield_bank_currents[bank]) <= 0.0 else shield_hit_recovery_delay
+		shield_bank_recovery_delays[bank] = maxf(float(shield_bank_recovery_delays.get(bank, 0.0)), delay)
 	_sync_shield_totals()
 	return maxf(amount - absorbed_damage, 0.0)
 
@@ -2548,8 +2590,8 @@ func mark_destroyed() -> void:
 	course_preview_active = false
 	course_preview_binding.clear()
 	course_preview_heading_lock = false
-	velocity = Vector2.ZERO
-	set_physics_process(false)
+	if is_instance_valid(physics_body) and physics_body.has_method("set_coast_command"):
+		physics_body.call("set_coast_command")
 
 
 func apply_room_damage(room_id: StringName, amount: float) -> void:
@@ -2735,16 +2777,19 @@ func get_power_grid_factor() -> float:
 	if ship_layout == null:
 		return 0.0
 	var report := _get_local_power_network_report()
-	var total_demand := 0.0
-	var powered_demand := 0.0
-	for network: Dictionary in report.get("networks", []):
-		var demand := float(network.get("demand", 0.0))
-		total_demand += demand
-		powered_demand += demand * float(network.get("factor", 0.0))
-	total_demand += float(report.get("uncovered_demand", 0.0))
-	if total_demand <= 0.0:
+	var requirements: Dictionary = report.get("room_requirements", {})
+	var coverage: Dictionary = report.get("room_coverage", {})
+	var total_required_links := 0.0
+	var delivered_links := 0.0
+	for room_id_value: Variant in requirements.keys():
+		var required := float(requirements[room_id_value])
+		if required <= 0.0:
+			continue
+		total_required_links += required
+		delivered_links += minf(float(coverage.get(room_id_value, 0.0)), required)
+	if total_required_links <= 0.0:
 		return 1.0
-	return clampf(powered_demand / total_demand, 0.0, 1.0)
+	return clampf(delivered_links / total_required_links, 0.0, 1.0)
 
 
 func get_power_network_report() -> Dictionary:
@@ -2769,7 +2814,7 @@ func _get_local_power_network_report() -> Dictionary:
 		var output := 0.0
 		if bool(room["produces_output"]):
 			output = health_factor * maxf(unmanned_power_generation_factor, manning) * module_factor
-		generator_factors[room_id] = clampf(output, 0.0, 1.3)
+		generator_factors[room_id] = clampf(output, 0.0, 1.0)
 	power_network_cache = SHIP_RESOURCE_ANALYZER.power_network_report(ship_layout, generator_factors)
 	power_network_cache_frame = frame
 	return power_network_cache
@@ -3313,6 +3358,11 @@ func clear_manual_target() -> void:
 
 
 func _update_shield(delta: float) -> void:
+	var recovery_steps: Dictionary = {}
+	for bank_value: Variant in shield_bank_maximums.keys():
+		var delay := float(shield_bank_recovery_delays.get(bank_value, 0.0))
+		shield_bank_recovery_delays[bank_value] = maxf(delay - delta, 0.0)
+		recovery_steps[bank_value] = maxf(delta - delay, 0.0)
 	if not shield_installed or shield_bank_maximums.is_empty():
 		current_shield = 0.0
 		maximum_shield = 0.0
@@ -3325,7 +3375,7 @@ func _update_shield(delta: float) -> void:
 			var bank_efficiency := _shield_bank_efficiency(bank)
 			shield_bank_currents[bank] = minf(
 				float(shield_bank_maximums[bank]),
-				float(shield_bank_currents.get(bank, 0.0)) + shield_regeneration_per_second * bank_efficiency * delta
+				float(shield_bank_currents.get(bank, 0.0)) + shield_regeneration_per_second * bank_efficiency * float(recovery_steps[bank])
 			)
 	_sync_shield_totals()
 
@@ -3442,6 +3492,7 @@ func get_shield_bank_report() -> Dictionary:
 			"maximum": maximum,
 			"ratio": float(shield_bank_currents.get(bank, 0.0)) / maximum if maximum > 0.0 else 0.0,
 			"online": _shield_bank_is_online(bank),
+			"recovery_delay": float(shield_bank_recovery_delays.get(bank, 0.0)),
 			"rooms": shield_bank_rooms.get(bank, []),
 		}
 	return report

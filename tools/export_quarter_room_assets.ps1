@@ -18,7 +18,28 @@ if (-not (Test-Path -LiteralPath $source)) {
 }
 
 New-Item -ItemType Directory -Path $output -Force | Out-Null
-& $aseprite -b --layer "Base" $source --save-as (Join-Path $output "base.png")
-& $aseprite -b --layer "Connectors" $source --save-as (Join-Path $output "connector.png")
 
-Write-Output "Exported quarter-room base and connector from $source"
+function Export-QuarterLayer {
+    param(
+        [Parameter(Mandatory = $true)][string]$Layer,
+        [Parameter(Mandatory = $true)][string]$Filename
+    )
+    $destination = Join-Path $output $Filename
+    $arguments = @(
+        '-b',
+        '--layer', ('"{0}"' -f $Layer),
+        ('"{0}"' -f $source),
+        '--save-as', ('"{0}"' -f $destination)
+    )
+    $process = Start-Process -FilePath $aseprite -ArgumentList $arguments -Wait -PassThru -WindowStyle Hidden
+    if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $destination)) {
+        throw "Aseprite failed to export layer '$Layer'."
+    }
+}
+
+Export-QuarterLayer -Layer "Base" -Filename "base.png"
+Export-QuarterLayer -Layer "Connectors_SingleSide" -Filename "connector.png"
+Export-QuarterLayer -Layer "Connectors_LR" -Filename "connector_straight.png"
+Export-QuarterLayer -Layer "Connectors_LU" -Filename "connector_corner.png"
+
+Write-Output "Exported quarter-room base and single, straight, and corner connectors from $source"

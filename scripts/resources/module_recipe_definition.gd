@@ -39,6 +39,9 @@ enum ModuleFamily {
 @export var adjacency_effects: Array[Resource] = []
 
 @export_category("Operation")
+## Number of overlapping reactor fields needed for full operation. Zero
+## derives the requirement from power_draw for older authored modules.
+@export_range(0, 8, 1) var required_reactor_fields := 0
 @export_range(0.0, 100.0, 1.0) var power_draw := 0.0
 @export_range(0, 1000, 1) var minimum_crew := 0
 @export_range(0, 1000, 1) var optimal_crew := 0

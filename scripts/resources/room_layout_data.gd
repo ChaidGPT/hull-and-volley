@@ -24,6 +24,10 @@ enum WeaponFireMode {
 @export_range(1.0, 10000.0, 1.0) var maximum_health := 100.0
 @export var produces_output := true
 @export var contributes_to_hull := true
+@export_category("Power Coverage")
+## Number of overlapping reactor fields required for full operation. Zero uses
+## the default for this grid type or its installed module recipe.
+@export_range(0, 8, 1) var required_reactor_fields := 0
 @export_category("Ship Logistics")
 ## NONE, SUPPLY, or CARGO. Supply storage serves crew operations; cargo storage holds trade and salvage freight.
 @export_enum("NONE", "SUPPLY", "CARGO") var storage_role := "NONE"

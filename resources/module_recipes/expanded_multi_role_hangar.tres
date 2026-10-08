@@ -34,6 +34,7 @@ family = 8
 footprint = ExtResource("3")
 construction_costs = Array[Resource]([SubResource("Credits"), SubResource("Metals"), SubResource("Electronics")])
 build_time = 45.0
+required_reactor_fields = 2
 power_draw = 2.0
 minimum_crew = 5
 optimal_crew = 9

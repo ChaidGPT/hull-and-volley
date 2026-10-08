@@ -1,6 +1,9 @@
 class_name ForgeInventoryPiece
 extends Control
 
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const CREW_REQUIREMENT_DISPLAY := preload("res://scripts/crew_requirement_display.gd")
+
 signal selected(room_type: String, source_instance_id: int)
 
 var room_type := "UNASSIGNED"
@@ -9,6 +12,7 @@ var piece_color := Color(0.16, 0.72, 0.66)
 var footprint := Vector2i.ONE
 var power_capacity := 0
 var power_draw := 0
+var crew_required := 0
 var inventory_key := ""
 var inventory_instance_id := 0
 var inventory_condition: Dictionary = {}
@@ -46,7 +50,8 @@ func configure(
 	item_key := "",
 	recipe: Resource = null,
 	item_instance_id := 0,
-	item_condition: Dictionary = {}
+	item_condition: Dictionary = {},
+	required_crew := 0
 ) -> void:
 	room_type = type_name
 	display_name = label
@@ -57,6 +62,7 @@ func configure(
 	inventory_key = item_key if not item_key.is_empty() else room_type
 	inventory_instance_id = item_instance_id
 	inventory_condition = item_condition.duplicate(true)
+	crew_required = maxi(required_crew, 0)
 	inventory_position = Vector2i(item_condition.get("inventory_position", Vector2i(-1, -1)))
 	module_recipe = recipe
 	# The inventory container assigns this control exactly the rectangle occupied
@@ -86,7 +92,8 @@ func _get_drag_data(at_position: Vector2) -> Variant:
 		inventory_key,
 		module_recipe,
 		inventory_instance_id,
-		inventory_condition
+		inventory_condition,
+		crew_required
 	)
 	preview.drag_ghost = true
 	preview.custom_minimum_size = Vector2(22 * footprint.x, 22 * footprint.y)
@@ -135,21 +142,46 @@ func _draw() -> void:
 	# Locker lattice lines must stop at a module's hull. An opaque, slightly
 	# darkened fill keeps a multi-cell module visibly solid instead of making the
 	# background grid look like seams between several separate pieces.
-	var solid_fill := Color(piece_color, 0.78) if drag_ghost else piece_color.darkened(0.30)
+	var solid_fill := Color(piece_color, 0.68) if drag_ghost else Color(0.015, 0.055, 0.055, 0.98).lerp(piece_color, 0.24)
 	draw_rect(rect, solid_fill, true)
-	draw_rect(rect, piece_color.lightened(0.34), false, 2.0)
+	draw_rect(rect.grow(-0.5), Color(piece_color, 0.82), false, 1.0)
 	# A module is one physical object even when it spans several placement
 	# lattice cells. Internal lattice lines made full rooms look like several
 	# loose quarter-parts, so only the true outside silhouette is drawn here.
+	var grid_glyph := _grid_glyph()
 	draw_string(
 		ThemeDB.fallback_font,
-		Vector2(rect.position.x, 6.0),
-		_grid_glyph(),
+		Vector2(rect.position.x, 4.0),
+		grid_glyph,
 		HORIZONTAL_ALIGNMENT_CENTER,
 		rect.size.x,
-		16,
-		Color(0.94, 1.0, 0.98)
+		8 if grid_glyph.length() > 3 else 10,
+		Color(piece_color.lightened(0.5), 0.9)
 	)
+	# Locker pieces advertise their authored requirements; they are not reporting
+	# live ship state yet.  Keep these icons bright so the catalog reads as a
+	# palette of available parts rather than a wall of fault indicators.
+	if power_draw > 0:
+		var bolt_size := 7.0
+		var bolt_width := float(power_draw) * bolt_size + float(power_draw - 1)
+		var bolt_center := Vector2(rect.end.x - bolt_width * 0.5 - 3.0, rect.end.y - bolt_size * 0.5 - 3.0)
+		POWER_REQUIREMENT_DISPLAY.draw_strip(
+			self,
+			bolt_center,
+			power_draw,
+			float(power_draw),
+			bolt_size,
+			1.0
+		)
+	if crew_required > 0:
+		CREW_REQUIREMENT_DISPLAY.draw_status(
+			self,
+			Vector2(rect.end.x - 9.0, rect.position.y + 7.0),
+			crew_required,
+			crew_required,
+			true,
+			7.0
+		)
 	draw_set_transform(Vector2.ZERO, 0.0)
 	if drag_ghost:
 		for mote_index: int in range(3):
@@ -173,37 +205,37 @@ func _grid_glyph() -> String:
 		if payload != null:
 			match String(payload.get("weapon_family")):
 				"BALLISTIC":
-					return "B"
+					return "BAL"
 				"CANNON":
-					return "C"
+					return "CAN"
 				"LASER":
-					return "L"
+					return "LAS"
 				"ENERGY":
-					return "P"
+					return "ENG"
 				"MISSILE":
-					return "M"
+					return "MSL"
 	match room_type:
 		"COMMAND":
-			return "B"
+			return "CMD"
 		"CREW_QUARTERS":
-			return "C"
+			return "CREW"
 		"POWER":
-			return "R"
+			return "PWR"
 		"PROPULSION":
-			return "T"
+			return "THR"
 		"WEAPONS":
-			return "W"
+			return "WPN"
 		"SHIELDS":
-			return "S"
+			return "SHD"
 		"HANGAR":
-			return "H"
+			return "HGR"
 		"MEDICAL":
-			return "M"
+			return "MED"
 		"SECURITY":
-			return "G"
+			return "SEC"
 		"WORKSHOP":
-			return "E"
+			return "SHOP"
 		"CARGO":
-			return "L"
+			return "CARGO"
 		_:
-			return "U"
+			return "GRID"

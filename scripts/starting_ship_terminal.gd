@@ -14,6 +14,9 @@ const MAGENTA := Color(0.88, 0.38, 1.0, 1.0)
 const INK := Color(0.006, 0.02, 0.025, 0.98)
 
 var candidates: Array[Dictionary] = []
+var draft_rounds: Array[Dictionary] = []
+var drafted_inventory_keys: Array[String] = []
+var current_draft_round := 0
 var previous_pause_state := false
 var frame: CrtContextPanel
 var body: MarginContainer
@@ -30,8 +33,10 @@ func _ready() -> void:
 	visible = false
 
 
-func open_terminal(generated_candidates: Array[Dictionary]) -> void:
-	candidates = generated_candidates
+func open_terminal(generated_rounds: Array[Dictionary]) -> void:
+	draft_rounds = generated_rounds
+	drafted_inventory_keys.clear()
+	current_draft_round = 0
 	previous_pause_state = get_tree().paused
 	get_tree().paused = true
 	visible = true
@@ -113,15 +118,117 @@ func _build_interface() -> void:
 
 
 func _show_choices() -> void:
-	header_title.text = "HANGAR THEFT PROTOCOL • AVAILABLE HULLS"
-	header_status.text = "FACILITY LOCKDOWN ACTIVE • SELECT ONE ESCAPE PLATFORM"
-	close_button.text = "EXIT TO CURRENT GAME  >"
+	if current_draft_round >= draft_rounds.size():
+		_show_draft_manifest()
+		return
+	var round_data: Dictionary = draft_rounds[current_draft_round]
+	header_title.text = "IMPOUND SALVAGE • %s" % String(round_data.get("title", "GRID CHOICE"))
+	header_status.text = "ROUND %d / %d • %s" % [
+		current_draft_round + 1,
+		draft_rounds.size(),
+		String(round_data.get("warning", "SELECT ONE GRID")),
+	]
+	close_button.text = "ABORT THEFT  >"
 	_clear_body()
 	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 14)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 24)
 	body.add_child(row)
-	for index: int in range(candidates.size()):
-		row.add_child(_build_candidate_card(index))
+	var options: Array = round_data.get("options", [])
+	for index: int in range(options.size()):
+		row.add_child(_build_draft_option_card(options[index], index))
+
+
+func _build_draft_option_card(option: Dictionary, index: int) -> Control:
+	var accent: Color = [CYAN, AMBER, MAGENTA][index % 3]
+	var card := Button.new()
+	card.text = ""
+	card.custom_minimum_size = Vector2(470, 570)
+	card.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	card.add_theme_stylebox_override("normal", _panel_style(accent, Color(0.008, 0.03, 0.034, 0.94), 1))
+	card.add_theme_stylebox_override("hover", _panel_style(Color.WHITE, Color(accent, 0.13), 2))
+	card.add_theme_stylebox_override("pressed", _panel_style(accent.lightened(0.25), Color(accent, 0.22), 2))
+	card.pressed.connect(_select_draft_option.bind(option))
+	var margin := MarginContainer.new()
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for side: String in ["left", "top", "right", "bottom"]:
+		margin.add_theme_constant_override("margin_%s" % side, 14)
+	card.add_child(margin)
+	var stack := VBoxContainer.new()
+	stack.add_theme_constant_override("separation", 9)
+	margin.add_child(stack)
+	stack.add_child(_make_label("◆ SALVAGE GRID %02d" % (current_draft_round + 1), 9, accent))
+	stack.add_child(_make_label(String(option.get("name", "GRID PIECE")), 20, Color.WHITE))
+	stack.add_child(_make_label(String(option.get("role", "IMPOUND HARDWARE")), 10, accent))
+	var preview := SHIP_PREVIEW.new() as ShipBuilderPreview
+	preview.custom_minimum_size = Vector2(420, 365)
+	preview.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	preview.set_authored_layout(option.get("preview_layout") as Resource)
+	stack.add_child(preview)
+	var descriptor: Dictionary = option.get("descriptor", {})
+	stack.add_child(_make_label(
+		"%s • POWER %d • CREW %d" % [
+			GridInventoryCatalog.footprint_label(Vector2i(descriptor.get("footprint", Vector2i.ONE))),
+			int(descriptor.get("power_draw", 0)),
+			int(descriptor.get("crew_required", 0)),
+		],
+		10,
+		Color(0.68, 0.84, 0.8)
+	))
+	var prompt := _make_label("TAKE THIS GRID  >", 11, AMBER)
+	prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stack.add_child(prompt)
+	_make_children_input_transparent(margin)
+	return card
+
+
+func _select_draft_option(option: Dictionary) -> void:
+	drafted_inventory_keys.append(String(option.get("inventory_key", "")))
+	current_draft_round += 1
+	_show_choices()
+
+
+func _show_draft_manifest() -> void:
+	header_title.text = "HANGAR THEFT PROTOCOL • SALVAGE SECURED"
+	header_status.text = "CORE SYSTEMS GUARANTEED • ASSEMBLY BAY ACCESS AVAILABLE"
+	close_button.text = "ABORT THEFT  >"
+	_clear_body()
+	var stack := VBoxContainer.new()
+	stack.alignment = BoxContainer.ALIGNMENT_CENTER
+	stack.add_theme_constant_override("separation", 14)
+	body.add_child(stack)
+	stack.add_child(_make_label("GUARANTEED KEEL", 11, CYAN))
+	stack.add_child(_make_label("BRIDGE  •  CREW QUARTERS  •  REACTOR  •  THRUSTER\nTWO AUTOMATED BALLISTIC TURRETS", 18, Color.WHITE))
+	stack.add_child(HSeparator.new())
+	stack.add_child(_make_label("STOLEN GRID MANIFEST", 11, AMBER))
+	for inventory_key: String in drafted_inventory_keys:
+		stack.add_child(_make_label("◆  %s" % _draft_display_name(inventory_key), 15, Color(0.72, 1.0, 0.94)))
+	var spacer := Control.new()
+	spacer.custom_minimum_size.y = 24
+	stack.add_child(spacer)
+	var assemble := _make_button("OPEN ASSEMBLY BAY  >", AMBER)
+	assemble.custom_minimum_size = Vector2(360, 58)
+	assemble.pressed.connect(_engage_draft)
+	stack.add_child(assemble)
+
+
+func _draft_display_name(inventory_key: String) -> String:
+	for round_data: Dictionary in draft_rounds:
+		for option_value: Variant in round_data.get("options", []):
+			var option := option_value as Dictionary
+			if String(option.get("inventory_key", "")) == inventory_key:
+				return String(option.get("name", inventory_key))
+	return inventory_key.replace("WEAPON:", "").replace("_", " ").to_upper()
+
+
+func _engage_draft() -> void:
+	var package := {
+		"name": "IMPOUND ESCAPE HULL",
+		"role": "PLAYER-ASSEMBLED ESCAPE PLATFORM",
+		"draft_inventory": drafted_inventory_keys.duplicate(),
+	}
+	await close_terminal()
+	ship_engaged.emit(package)
 
 
 func _build_candidate_card(index: int) -> Control:
@@ -253,31 +360,28 @@ func _cancel_terminal() -> void:
 
 
 func _add_power_meter(parent: Container, stats: Dictionary, accent: Color) -> void:
-	var capacity := maxi(roundi(float(stats.get("energy_capacity", 0.0))), 1)
-	var demand := clampi(roundi(float(stats.get("energy_demand", 0.0))), 0, capacity)
-	parent.add_child(_make_label("POWER FIELD • %d OPEN" % (capacity - demand), 9, accent))
+	var field_count := maxi(int(stats.get("reactor_field_count", 0)), 1)
+	var underpowered := int(stats.get("underpowered_room_count", 0))
+	parent.add_child(_make_label("POWER COVERAGE • %d REACTOR FIELD%s • %d ROOM%s LOW" % [
+		field_count, "" if field_count == 1 else "S",
+		underpowered, "" if underpowered == 1 else "S",
+	], 9, accent))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 3)
 	parent.add_child(row)
-	for index: int in range(capacity):
+	for _index: int in range(field_count):
 		var cell := ColorRect.new()
 		cell.custom_minimum_size = Vector2(22, 10)
-		cell.color = AMBER if index < demand else Color(accent, 0.8)
+		cell.color = Color(accent, 0.8)
 		row.add_child(cell)
 
 
 func _add_crew_meter(parent: Container, stats: Dictionary, accent: Color) -> void:
-	var capacity := maxi(int(stats.get("crew_capacity", 0)), 1)
-	var required := clampi(int(stats.get("optimal_crew", 0)), 0, capacity)
-	parent.add_child(_make_label("CREW BERTHS • %d RESERVE" % (capacity - required), 9, accent))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 4)
-	parent.add_child(row)
-	for index: int in range(capacity):
-		var crew_mark := ColorRect.new()
-		crew_mark.custom_minimum_size = Vector2(7, 14)
-		crew_mark.color = AMBER if index < required else Color(accent, 0.88)
-		row.add_child(crew_mark)
+	var capacity := maxi(int(stats.get("crew_capacity", 0)), 0)
+	# Starter crews are filled to their available berth capacity when the hull is
+	# accepted, so the acquisition card can state the actual incoming complement.
+	parent.add_child(_make_label("PERSONNEL REGISTER", 9, accent))
+	parent.add_child(_make_label("CURRENT CREW  %02d     MAX CREW  %02d" % [capacity, capacity], 13, Color.WHITE))
 
 
 func _clear_body() -> void:

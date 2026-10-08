@@ -102,7 +102,7 @@ room_id = &"type_reactor"
 display_name = "REACTOR"
 type_name = "POWER"
 effect_label = "POWER GENERATION"
-description = "Produces power for ship systems. Damage can reduce available power and create dangerous failures."
+description = "Projects an unlimited local power field. Damage can weaken or collapse its coverage."
 color = Color(0.4, 0.3, 0.08, 1)
 maximum_health = 120.0
 
@@ -209,7 +209,7 @@ room_id = &"power_55574629"
 display_name = "REACTOR"
 type_name = "POWER"
 effect_label = "POWER GENERATION"
-description = "Produces power for ship systems. Damage can reduce available power and create dangerous failures."
+description = "Projects an unlimited local power field. Damage can weaken or collapse its coverage."
 grid_rects = Array[Rect2i]([Rect2i(0, 4, 2, 2)])
 color = Color(0.4, 0.3, 0.08, 1)
 maximum_health = 120.0

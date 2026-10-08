@@ -436,7 +436,8 @@ func _animate_return(old_positions: Dictionary, piece: Control, cursor_position:
 		String(piece.get("inventory_key")),
 		piece.get("module_recipe"),
 		int(piece.get("inventory_instance_id")),
-		piece.get("inventory_condition")
+		piece.get("inventory_condition"),
+		int(piece.get("crew_required"))
 	)
 	ghost.drag_ghost = true
 	var returned_footprint := Vector2(piece.get("footprint"))

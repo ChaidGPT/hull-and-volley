@@ -13,15 +13,15 @@
 [ext_resource type="AudioStream" path="res://assets/audio/ui/Denied_03.wav" id="11_menu_cancel"]
 [ext_resource type="AudioStream" path="res://assets/audio/ui/Bleep_03_Reversed.wav" id="21_menu_close"]
 [ext_resource type="Resource" path="res://resources/destruction_debris.tres" id="12_destruction_debris"]
-[ext_resource type="Resource" path="res://resources/sample_ships/escort_definition.tres" id="13_escort"]
-[ext_resource type="Resource" path="res://resources/sample_ships/broadside_cruiser_definition.tres" id="14_cruiser"]
+[ext_resource type="Resource" path="res://resources/ship_contacts/escort_definition.tres" id="13_escort"]
+[ext_resource type="Resource" path="res://resources/ship_contacts/broadside_cruiser_definition.tres" id="14_cruiser"]
 [ext_resource type="Resource" path="res://resources/default_structural_material.tres" id="15_structure"]
 [ext_resource type="Resource" path="res://resources/default_door_definition.tres" id="16_doors"]
 [ext_resource type="Script" path="res://scripts/crew_simulation.gd" id="17_crew_sim"]
 [ext_resource type="Resource" path="res://resources/default_crew_visual.tres" id="18_crew_visual"]
 [ext_resource type="Resource" path="res://resources/crew_rules.tres" id="19_crew_rules"]
 [ext_resource type="Script" path="res://scripts/crt_context_panel.gd" id="20_crt"]
-[ext_resource type="Resource" path="res://resources/sample_ships/orbital_station_definition.tres" id="25_station"]
+[ext_resource type="Resource" path="res://resources/ship_contacts/orbital_station_definition.tres" id="25_station"]
 [ext_resource type="Script" path="res://scripts/speedometer_gauge.gd" id="26_speed_gauge"]
 [ext_resource type="Script" path="res://scripts/crt_tooltip_layer.gd" id="27_crt_tooltip"]
 [ext_resource type="Script" path="res://scripts/directional_shield_bar.gd" id="28_directional_shield"]
@@ -34,9 +34,8 @@
 [ext_resource type="AudioStream" path="res://assets/audio/ui/Action_Denied.wav" id="51_action_denied"]
 [ext_resource type="Script" path="res://scripts/sector_simulation.gd" id="35_sector"]
 [ext_resource type="Script" path="res://scripts/sector_population.gd" id="36_sector_population"]
-[ext_resource type="Resource" path="res://resources/sample_ships/mining_outpost_definition.tres" id="37_mining_outpost"]
-[ext_resource type="Resource" path="res://resources/sample_ships/bulk_miner_definition.tres" id="38_bulk_miner"]
-[ext_resource type="Resource" path="res://resources/sample_ships/lane_freighter_definition.tres" id="39_freighter"]
+[ext_resource type="Resource" path="res://resources/ship_contacts/mining_outpost_definition.tres" id="37_mining_outpost"]
+[ext_resource type="Resource" path="res://resources/ship_contacts/lane_freighter_definition.tres" id="39_freighter"]
 [ext_resource type="Resource" path="res://resources/encounters/mining_operation.tres" id="40_mining_encounter"]
 [ext_resource type="Resource" path="res://resources/encounters/shipping_lane.tres" id="41_lane_encounter"]
 [ext_resource type="Resource" path="res://resources/encounters/transit_fleet.tres" id="42_fleet_encounter"]
@@ -279,7 +278,7 @@ ship_layout = ExtResource("3_layout")
 [node name="CombatSimulation" type="Node" parent="."]
 unique_name_in_owner = true
 script = ExtResource("4_combat")
-sample_ship_definitions = Array[Resource]([ExtResource("13_escort"), ExtResource("14_cruiser")])
+ship_contact_definitions = Array[Resource]([ExtResource("13_escort"), ExtResource("14_cruiser")])
 default_space_station_definition = ExtResource("25_station")
 default_structural_material = ExtResource("15_structure")
 default_door_definition = ExtResource("16_doors")
@@ -296,7 +295,6 @@ unique_name_in_owner = true
 script = ExtResource("36_sector_population")
 neutral_encounter_pool = Array[Resource]([ExtResource("40_mining_encounter"), ExtResource("41_lane_encounter"), ExtResource("42_fleet_encounter")])
 mining_outpost_definition = ExtResource("37_mining_outpost")
-bulk_miner_definition = ExtResource("38_bulk_miner")
 freighter_definition = ExtResource("39_freighter")
 
 [node name="CrewSimulation" type="Node" parent="."]
@@ -553,12 +551,10 @@ theme_override_styles/panel = SubResource("StyleContent")
 [node name="ContentHost" type="MarginContainer" parent="Layout/ContentPanel"]
 unique_name_in_owner = true
 layout_mode = 2
-theme_override_constants/margin_left = 18
 theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 18
 
 [node name="Footer" type="PanelContainer" parent="Layout"]
+visible = false
 custom_minimum_size = Vector2(0, 34)
 layout_mode = 2
 theme_override_styles/panel = SubResource("StyleFooter")
@@ -954,7 +950,7 @@ theme_override_styles/normal = SubResource("StyleForgeControl")
 theme_override_styles/hover = SubResource("StyleForgeControlHover")
 text = "> PROJECT MIRROR CONTACT"
 
-[node name="ForgeSampleShip" type="OptionButton" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+[node name="ForgeBlueprintContact" type="OptionButton" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_font_sizes/font_size = 12
@@ -962,7 +958,7 @@ theme_override_styles/normal = SubResource("StyleForgeControl")
 theme_override_styles/hover = SubResource("StyleForgeControlHover")
 tooltip_text = "SELECT TEST SHIP"
 
-[node name="ForgeSpawnSampleButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
+[node name="ForgeSpawnBlueprintContactButton" type="Button" parent="ForgeOverlay/ForgePanel/Margin/Controls"]
 unique_name_in_owner = true
 layout_mode = 2
 alignment = 0

@@ -17,6 +17,8 @@ const ArcadeResourceMeterScript := preload("res://scripts/arcade_resource_meter.
 const DrydockFacingSelectorScript := preload("res://scripts/drydock_facing_selector.gd")
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
 const ROOM_STAFFING_RULES := preload("res://scripts/room_staffing_rules.gd")
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const CREW_REQUIREMENT_DISPLAY := preload("res://scripts/crew_requirement_display.gd")
 const BLUEPRINT_DIRECTORY := "res://resources/ship_designs"
 const EXPLICIT_GROUP_ROOM_TYPES := ["WEAPONS", "PROPULSION", "HANGAR", "SHIELDS"]
 const REQUIRED_SHIP_SYSTEMS := [
@@ -109,6 +111,8 @@ var builder_module_recipe: Resource
 var builder_group_selection: Dictionary = {}
 var hovered_frame_size := Vector2i.ZERO
 var forge_armed_piece_id := 0
+var inspected_inventory_piece_id := 0
+var inspected_inventory_room_type := ""
 var forge_inventory_initialized := false
 var builder_resource_signature := ""
 var builder_resource_stats_cache: Dictionary = {}
@@ -161,12 +165,12 @@ func open_for_layout(
 	_normalize_unmanned_exterior_modules()
 	inventory_mode = requested_inventory_mode.to_upper()
 	if forge_inventory_grid != null:
-		forge_inventory_grid.set("manual_layout", inventory_mode == "STATION")
+		forge_inventory_grid.set("manual_layout", _uses_owned_inventory())
 	owned_grid_inventory = grid_inventory
 	inventory_owner = requested_inventory_owner
 	owned_grid_instances.clear()
 	if (
-		inventory_mode == "STATION"
+		_uses_owned_inventory()
 		and is_instance_valid(inventory_owner)
 		and inventory_owner.has_method("get_grid_piece_instances")
 	):
@@ -176,7 +180,7 @@ func open_for_layout(
 	if inventory_header_label != null:
 		inventory_header_label.text = (
 			"CARGO GRID INVENTORY • DRAG TO BLUEPRINT"
-			if inventory_mode == "STATION"
+			if _uses_owned_inventory()
 			else "MODULE INVENTORY • UNLIMITED FORGE CATALOG"
 		)
 	if source_layout != null:
@@ -188,7 +192,7 @@ func open_for_layout(
 	_populate_new_size_selector()
 	_populate_forge_inventory()
 	_configure_inventory_mode_interface()
-	_show_shipyard_context("edit" if inventory_mode == "STATION" else "", false)
+	_show_shipyard_context("edit" if _uses_owned_inventory() else "", false)
 	_refresh_display()
 	previous_tree_pause = get_tree().paused
 	get_tree().paused = true
@@ -246,6 +250,7 @@ func configure_embedded_refit(
 		selected_size = Vector2i(int(source_layout.get("columns")), int(source_layout.get("rows")))
 	if builder_grid != null:
 		builder_grid.set("ship_layout", source_layout)
+		builder_grid.set("planned_staffing_display", false)
 		_connect_embedded_builder_grid()
 		builder_grid.call("set_editor_mode", true)
 		builder_grid.call("set_free_blueprint_placement", false)
@@ -266,19 +271,19 @@ func configure_embedded_refit(
 		# that old geometry when the same card becomes the compact side dossier.
 		dossier_panel.set_anchors_preset(Control.PRESET_TOP_LEFT)
 		dossier_panel.position = Vector2.ZERO
-		dossier_panel.size = Vector2(132.0, 0.0)
-		dossier_panel.custom_minimum_size = Vector2(132.0, 0.0)
-		dossier_panel.size_flags_horizontal = Control.SIZE_SHRINK_END
+		dossier_panel.size = Vector2(176.0, 0.0)
+		dossier_panel.custom_minimum_size = Vector2(176.0, 0.0)
+		dossier_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		dossier_panel.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	if external_resource_host != null and builder_resource_panel != null and builder_resource_panel.get_parent() != external_resource_host:
 		builder_resource_panel.reparent(external_resource_host)
-		builder_resource_panel.custom_minimum_size = Vector2(0.0, 54.0)
+		builder_resource_panel.custom_minimum_size = Vector2(0.0, 38.0)
 		builder_resource_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		builder_resource_panel.size_flags_vertical = Control.SIZE_FILL
 		# The live workbench explains power spatially on the hull and selected
 		# room. Keep only the genuinely ship-wide crew roster in this rail.
 		builder_power_meter.visible = false
-		builder_crew_meter.custom_minimum_size = Vector2(150.0, 54.0)
+		builder_crew_meter.custom_minimum_size = Vector2(150.0, 38.0)
 	_refresh_display()
 
 
@@ -303,10 +308,16 @@ func set_embedded_refit_locked(is_locked: bool) -> void:
 func select_embedded_inventory_piece(room_type: String, source_instance_id: int) -> void:
 	if not embedded_refit_mode:
 		return
+	_inspect_forge_inventory_piece(room_type, source_instance_id)
+
+
+func begin_embedded_inventory_piece_pickup(room_type: String, source_instance_id: int) -> void:
+	if not embedded_refit_mode:
+		return
 	if embedded_refit_locked:
 		_set_builder_status("REFIT INTERLOCK • HOSTILE FIRE DETECTED")
 		return
-	_select_forge_inventory_piece(room_type, source_instance_id)
+	_arm_forge_inventory_piece(room_type, source_instance_id)
 
 
 func has_embedded_inventory_piece_armed() -> bool:
@@ -361,21 +372,32 @@ func close() -> void:
 
 func _configure_inventory_mode_interface() -> void:
 	var is_station_drydock := inventory_mode == "STATION"
+	var is_escape_assembly := inventory_mode == "ESCAPE"
+	var uses_owned_inventory := _uses_owned_inventory()
 	if shipyard_title_label != null:
-		shipyard_title_label.text = "DRYDOCK • %s" % _layout_display_name(source_layout).to_upper() if is_station_drydock else "SHIPYARD COMMAND"
+		shipyard_title_label.text = (
+			"IMPOUND ASSEMBLY BAY • BUILD YOUR ESCAPE HULL"
+			if is_escape_assembly
+			else ("DRYDOCK • %s" % _layout_display_name(source_layout).to_upper() if is_station_drydock else "SHIPYARD COMMAND")
+		)
 	if shipyard_subtitle_label != null:
-		shipyard_subtitle_label.text = "Active vessel on clamps. Refit the hull directly." if is_station_drydock else "Paused drydock terminal. Choose a work order to arm the console."
-	if shipyard_notice_label != null and is_station_drydock:
-		shipyard_notice_label.text = "LIFT FROM HULL • RETURN TO LOCKER • DISCARD AT CHUTE"
+		shipyard_subtitle_label.text = (
+			"Attach the stolen grids to the bridge keel. Launch begins when every required system is installed."
+			if is_escape_assembly
+			else ("Active vessel on clamps. Refit the hull directly." if is_station_drydock else "Paused drydock terminal. Choose a work order to arm the console.")
+		)
+	if shipyard_notice_label != null and uses_owned_inventory:
+		shipyard_notice_label.text = "DRAG GRID TO HULL • ROTATE DIRECTIONAL SYSTEMS • KEEP THE FRAME CONNECTED" if is_escape_assembly else "LIFT FROM HULL • RETURN TO LOCKER • DISCARD AT CHUTE"
 	if save_section != null:
 		var section_title := save_section.get_node_or_null("Margin/Body") as VBoxContainer
 		if section_title != null and section_title.get_child_count() > 0:
-			(section_title.get_child(0) as Label).text = "PARTS LOCKER" if is_station_drydock else "HULL ARCHIVE"
+			(section_title.get_child(0) as Label).text = "STOLEN GRID MANIFEST" if is_escape_assembly else ("PARTS LOCKER" if is_station_drydock else "HULL ARCHIVE")
 	if save_title_label != null:
-		save_title_label.visible = not is_station_drydock
+		save_title_label.visible = not uses_owned_inventory
 	if design_name_field != null:
-		design_name_field.visible = not is_station_drydock
+		design_name_field.visible = not uses_owned_inventory
 	if save_blueprint_button != null:
+		save_blueprint_button.visible = not is_escape_assembly
 		save_blueprint_button.text = "SAVE HULL PATTERN" if is_station_drydock else "ARCHIVE BLUEPRINT"
 		save_blueprint_button.tooltip_text = "CLICK • SAVE CURRENT HULL AS BLUEPRINT" if is_station_drydock else "CLICK • SAVE BLUEPRINT"
 		save_blueprint_button.custom_minimum_size.y = 28 if is_station_drydock else 34
@@ -385,29 +407,29 @@ func _configure_inventory_mode_interface() -> void:
 				save_blueprint_button.get_parent().get_child_count() - 1
 			)
 	if back_from_edit_button != null:
-		back_from_edit_button.visible = not is_station_drydock
+		back_from_edit_button.visible = not uses_owned_inventory
 	if builder_resource_panel != null:
 		builder_resource_panel.visible = current_context == "edit" and source_layout != null
 	if builder_scroll != null:
 		builder_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 		builder_scroll.vertical_scroll_mode = (
 			ScrollContainer.SCROLL_MODE_DISABLED
-			if is_station_drydock
+			if uses_owned_inventory
 			else ScrollContainer.SCROLL_MODE_AUTO
 		)
 		builder_scroll.custom_minimum_size.y = 0 if is_station_drydock else 280
 	if builder_view_actions != null:
-		builder_view_actions.visible = not is_station_drydock
-	if builder_status_label != null and is_station_drydock:
-		builder_status_label.text = "DRAG LOCKER → HULL • HULL → LOCKER OR CHUTE"
+		builder_view_actions.visible = not uses_owned_inventory
+	if builder_status_label != null and uses_owned_inventory:
+		builder_status_label.text = "ASSEMBLE REQUIRED SYSTEMS • OPTIONAL GRIDS MAY REMAIN IN CARGO" if is_escape_assembly else "DRAG LOCKER → HULL • HULL → LOCKER OR CHUTE"
 	if inventory_header_label != null:
-		inventory_header_label.text = "STOWED PARTS • DROP HERE" if is_station_drydock else "FORGE CATALOG • UNLIMITED"
+		inventory_header_label.text = "STOLEN GRIDS • DRAG TO KEEL" if is_escape_assembly else ("STOWED PARTS • DROP HERE" if is_station_drydock else "FORGE CATALOG • UNLIMITED")
 	if close_terminal_button != null:
-		close_terminal_button.text = "RETURN TO STATION  >" if is_station_drydock else "CLOSE TERMINAL  >"
-		close_terminal_button.tooltip_text = "LEAVE DRYDOCK EDITOR" if is_station_drydock else "CLOSE SHIPYARD TERMINAL"
-	if preview != null and is_station_drydock:
+		close_terminal_button.text = "BREAK CLAMPS • BEGIN RUN  >" if is_escape_assembly else ("RETURN TO STATION  >" if is_station_drydock else "CLOSE TERMINAL  >")
+		close_terminal_button.tooltip_text = "LAUNCH THE ASSEMBLED ESCAPE HULL" if is_escape_assembly else ("LEAVE DRYDOCK EDITOR" if is_station_drydock else "CLOSE SHIPYARD TERMINAL")
+	if preview != null and uses_owned_inventory:
 		_dock_shipyard_child(preview, 0.0, 0.0, 1.0, 1.0, 340.0, 0.0, -8.0, 0.0)
-	if builder_grid != null and is_station_drydock:
+	if builder_grid != null and uses_owned_inventory:
 		_dock_shipyard_child(builder_grid, 0.0, 0.0, 1.0, 1.0, 340.0, 0.0, -8.0, 0.0)
 	if dossier_panel != null:
 		dossier_panel.visible = false
@@ -653,19 +675,23 @@ func _build_interface() -> void:
 	builder_resource_panel.z_index = 20
 	builder_resource_panel.add_theme_stylebox_override("panel", StyleBoxEmpty.new())
 	body.add_child(builder_resource_panel)
-	_dock_shipyard_child(builder_resource_panel, 0.0, 0.0, 1.0, 0.0, 340.0, 0.0, -294.0, 58.0)
+	# Ship-wide readiness is a centered HUD strip. Keeping it fixed-width gives
+	# the catalog and the right-side dossier permanent, non-overlapping lanes.
+	_dock_shipyard_child(builder_resource_panel, 0.5, 0.0, 0.5, 0.0, -184.0, 0.0, 184.0, 38.0)
 	var resource_margin := MarginContainer.new()
 	builder_resource_panel.add_child(resource_margin)
 	var resource_stack := HBoxContainer.new()
-	resource_stack.add_theme_constant_override("separation", 8)
+	resource_stack.add_theme_constant_override("separation", 6)
 	resource_margin.add_child(resource_stack)
 	builder_power_meter = ArcadeResourceMeterScript.new() as Control
-	builder_power_meter.custom_minimum_size = Vector2(180, 54)
+	builder_power_meter.set("compact_hud", true)
+	builder_power_meter.custom_minimum_size = Vector2(180, 38)
 	builder_power_meter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_stack.add_child(builder_power_meter)
 	builder_crew_meter = ArcadeResourceMeterScript.new() as Control
 	builder_crew_meter.set("meter_kind", 1)
-	builder_crew_meter.custom_minimum_size = Vector2(180, 54)
+	builder_crew_meter.set("compact_hud", true)
+	builder_crew_meter.custom_minimum_size = Vector2(180, 38)
 	builder_crew_meter.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	resource_stack.add_child(builder_crew_meter)
 
@@ -935,7 +961,7 @@ func _populate_builder_type_buttons() -> void:
 		return
 	for child: Node in builder_type_buttons.get_children():
 		child.queue_free()
-	if inventory_mode == "STATION":
+	if _uses_owned_inventory():
 		_add_builder_category_label("CARGO CONTROL")
 		var cargo_instruction := Label.new()
 		cargo_instruction.text = "DRAG AN OWNED GRID\nFROM THE INVENTORY."
@@ -993,7 +1019,7 @@ func _populate_forge_inventory() -> void:
 		return
 	for child: Node in forge_inventory_grid.get_children():
 		child.queue_free()
-	if inventory_mode == "STATION":
+	if _uses_owned_inventory():
 		if not owned_grid_instances.is_empty():
 			owned_grid_instances.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 				var first_key := String(a.get("inventory_key", ""))
@@ -1068,9 +1094,16 @@ func _add_forge_inventory_piece(
 	var piece_footprint := _inventory_piece_footprint(room_type, template, recipe)
 	var power_delta := ShipBuilderAnalyzer.room_power_delta(room_type, 1, template)
 	if recipe != null:
-		var payload: Resource = recipe.get("payload_resource")
-		if payload != null:
-			power_delta = Vector2(0.0, float(recipe.get("power_draw")))
+		var recipe_requirement := int(recipe.get("required_reactor_fields"))
+		if recipe_requirement <= 0 and float(recipe.get("power_draw")) > 0.0:
+			recipe_requirement = maxi(ceili(float(recipe.get("power_draw"))), 1)
+		power_delta = Vector2(0.0, float(recipe_requirement))
+	var piece_minimum_crew := int(template.get("minimum_crew"))
+	var piece_optimal_crew := int(template.get("optimal_crew"))
+	if recipe != null:
+		piece_minimum_crew = maxi(piece_minimum_crew, int(recipe.get("minimum_crew")))
+		piece_optimal_crew = maxi(piece_optimal_crew, int(recipe.get("optimal_crew")))
+	piece_optimal_crew = ROOM_STAFFING_RULES.effective_requirements(template, piece_minimum_crew, piece_optimal_crew).y
 	var piece: Control = ForgeInventoryPieceScript.new()
 	piece.call(
 		"configure",
@@ -1083,14 +1116,17 @@ func _add_forge_inventory_piece(
 		resolved_key,
 		recipe,
 		int(inventory_instance.get("instance_id", 0)),
-		inventory_instance
+		inventory_instance,
+		piece_optimal_crew
 	)
-	var power_hint := "GENERATES %d POWER" % roundi(power_delta.x) if power_delta.x > 0.0 else (
-		"USES %d POWER" % roundi(power_delta.y) if power_delta.y > 0.0 else "NO POWER LOAD"
+	var power_hint := "PROJECTS A REACTOR FIELD" if power_delta.x > 0.0 else (
+		"REQUIRES %d REACTOR FIELD%s" % [roundi(power_delta.y), "" if roundi(power_delta.y) == 1 else "S"] if power_delta.y > 0.0 else "NO REACTOR LINK REQUIRED"
 	)
-	piece.tooltip_text = "%s\n%s\nDRAG TO INSTALL" % [
+	var crew_hint := "CREW COMPLEMENT • %d" % piece_optimal_crew if piece_optimal_crew > 0 else "NO CREW STATIONS REQUIRED"
+	piece.tooltip_text = "%s\n%s\n%s\nDRAG TO INSTALL" % [
 		"%s • %s" % [piece_name.to_upper(), _inventory_footprint_label(piece_footprint)],
 		power_hint,
+		crew_hint,
 	]
 	piece.connect("selected", _select_forge_inventory_piece)
 	forge_inventory_grid.add_child(piece)
@@ -1116,9 +1152,42 @@ func _inventory_footprint_label(footprint: Vector2i) -> String:
 
 
 func _select_forge_inventory_piece(room_type: String, source_instance_id: int) -> void:
+	_inspect_forge_inventory_piece(room_type, source_instance_id)
+
+
+func _inspect_forge_inventory_piece(room_type: String, source_instance_id: int) -> void:
+	var selected_piece := _inventory_piece_by_id(source_instance_id, room_type)
+	if selected_piece == null:
+		return
+	# A tap is an inspection gesture. Installation is deliberately reserved for
+	# an actual drag (or the controller's explicit pickup action).
+	forge_armed_piece_id = 0
+	builder_room_type = ""
+	builder_inventory_key = ""
+	builder_module_recipe = null
+	_set_builder_tool("")
+	inspected_inventory_piece_id = source_instance_id
+	inspected_inventory_room_type = room_type
+	if builder_grid != null:
+		builder_grid.call("set_inventory_piece_armed", false)
+		builder_grid.call("clear_room_selection")
+	_set_builder_status(
+		"%s SELECTED • DRAG FROM THE CATALOG TO INSTALL"
+		% String(selected_piece.get("display_name")).to_upper()
+	)
+	_refresh_display()
+
+
+func _arm_forge_inventory_piece(room_type: String, source_instance_id: int) -> void:
 	builder_room_type = room_type
 	forge_armed_piece_id = source_instance_id
 	var selected_piece := _inventory_piece_by_id(source_instance_id, room_type)
+	if selected_piece == null:
+		forge_armed_piece_id = 0
+		builder_room_type = ""
+		return
+	inspected_inventory_piece_id = source_instance_id
+	inspected_inventory_room_type = room_type
 	builder_inventory_key = (
 		String(selected_piece.get("inventory_key"))
 		if selected_piece != null
@@ -1751,10 +1820,11 @@ func _ensure_builder_grid() -> void:
 		builder_grid.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		builder_grid.size_flags_vertical = Control.SIZE_EXPAND_FILL
 		builder_grid.set("ship_layout", source_layout)
+		builder_grid.set("planned_staffing_display", true)
 		builder_grid.call("set_editor_mode", true)
 		builder_grid.call("set_free_blueprint_placement", inventory_mode == "FORGE")
 		if builder_grid.has_method("set_core_frame_edit_locked"):
-			builder_grid.call("set_core_frame_edit_locked", inventory_mode == "STATION")
+			builder_grid.call("set_core_frame_edit_locked", _uses_owned_inventory())
 		if builder_grid.has_signal("editor_cell_activated"):
 			builder_grid.connect("editor_cell_activated", _on_builder_grid_cell_activated)
 		if builder_grid.has_signal("editor_cells_dragged"):
@@ -1775,14 +1845,14 @@ func _ensure_builder_grid() -> void:
 		builder_grid.call("set_editor_mode", true)
 		builder_grid.call("set_free_blueprint_placement", inventory_mode == "FORGE")
 		if builder_grid.has_method("set_core_frame_edit_locked"):
-			builder_grid.call("set_core_frame_edit_locked", inventory_mode == "STATION")
+			builder_grid.call("set_core_frame_edit_locked", _uses_owned_inventory())
 		if embedded_refit_mode:
 			builder_grid.call("set_editor_mode", not embedded_refit_locked)
 			builder_grid.call("refresh_layout")
 			return
 		_dock_shipyard_child(builder_grid, 0.5, 0.0, 0.5, 1.0, -215.0, 0.0, 215.0, 0.0)
 		builder_grid.call("refresh_layout")
-	if inventory_mode == "STATION":
+	if _uses_owned_inventory():
 		_dock_shipyard_child(builder_grid, 0.0, 0.0, 1.0, 1.0, 340.0, 0.0, -8.0, 0.0)
 
 
@@ -1797,7 +1867,7 @@ func _show_builder_grid(is_builder_visible: bool) -> void:
 		if is_builder_visible and not was_visible:
 			builder_grid.call_deferred("fit_editor_view")
 	if builder_view_actions != null:
-		builder_view_actions.visible = is_builder_visible and inventory_mode != "STATION"
+		builder_view_actions.visible = is_builder_visible and not _uses_owned_inventory()
 	if preview != null:
 		preview.visible = not is_builder_visible
 
@@ -1878,6 +1948,8 @@ func _set_builder_room_type(room_type: String) -> void:
 func _on_builder_grid_cell_activated(cell: Vector2i, button_index: int) -> void:
 	if source_layout == null:
 		return
+	inspected_inventory_piece_id = 0
+	inspected_inventory_room_type = ""
 	builder_last_selected_cell = cell
 	builder_specific_mount_selected = (
 		button_index == MOUSE_BUTTON_LEFT
@@ -1895,7 +1967,7 @@ func _on_builder_grid_cell_activated(cell: Vector2i, button_index: int) -> void:
 		if builder_grid != null:
 			builder_grid.call("clear_room_selection")
 		if (
-			inventory_mode == "STATION"
+			_uses_owned_inventory()
 			and not builder_room_type.is_empty()
 			and _inventory_piece_by_id(forge_armed_piece_id, builder_room_type) != null
 		):
@@ -1918,6 +1990,8 @@ func _on_builder_grid_cell_activated(cell: Vector2i, button_index: int) -> void:
 
 
 func _on_builder_grid_empty_space_selected() -> void:
+	inspected_inventory_piece_id = 0
+	inspected_inventory_room_type = ""
 	builder_last_selected_cell = INVALID_CELL
 	builder_specific_mount_selected = false
 	builder_pending_add_cell = INVALID_CELL
@@ -1949,6 +2023,8 @@ func _on_forge_inventory_piece_dropped(room_type: String, cell: Vector2i, source
 		return
 	builder_room_type = room_type
 	forge_armed_piece_id = source_instance_id
+	inspected_inventory_piece_id = 0
+	inspected_inventory_room_type = ""
 	var dragged_piece := _inventory_piece_by_id(source_instance_id, room_type)
 	if dragged_piece != null:
 		builder_inventory_key = String(dragged_piece.get("inventory_key"))
@@ -1956,14 +2032,18 @@ func _on_forge_inventory_piece_dropped(room_type: String, cell: Vector2i, source
 	builder_pending_add_cell = cell
 	builder_pending_add_offset = builder_grid.call("get_pending_placement_offset") if builder_grid != null else Vector2.ZERO
 	if _builder_add_cell(cell):
-		_set_builder_status("%s transferred from inventory and installed at %s." % [_room_type_palette_name(room_type), cell])
+		# Keep readiness warnings produced by the placement transaction visible;
+		# replacing them with the generic transfer receipt hides why a newly
+		# installed grid is dark.
+		if builder_status_label == null or not builder_status_label.text.begins_with("PLACED WITH WARNINGS"):
+			_set_builder_status("%s transferred from inventory and installed at %s." % [_room_type_palette_name(room_type), cell])
 		builder_room_type = ""
 		builder_inventory_key = ""
 		builder_module_recipe = null
 		if builder_grid != null:
 			builder_grid.call("set_inventory_piece_armed", false)
 		_pulse_builder_grid()
-		if inventory_mode != "STATION" and forge_inventory_grid != null:
+		if not _uses_owned_inventory() and forge_inventory_grid != null:
 			forge_inventory_grid.call("restore_catalog_piece", source_instance_id)
 	else:
 		_return_inventory_drag(source_instance_id)
@@ -2014,6 +2094,7 @@ func _on_installed_piece_relocated(
 	var moving_rects: Array[Rect2i] = moving_piece.get("grid_rects")
 	var footprint := moving_rects[0].size if not moving_rects.is_empty() else Vector2i.ONE
 	var denial := ""
+	var readiness_warning := ""
 	var facing_changed := false
 	if not bool(source_layout.call("is_cell_buildable", target_cell)):
 		denial = "DESTINATION OUTSIDE HULL WORK ENVELOPE"
@@ -2058,8 +2139,12 @@ func _on_installed_piece_relocated(
 				footprint,
 				moving_piece
 			)
-			if inventory_mode != "FORGE" and not bool(power_status.get("valid", true)):
-				denial = String(power_status.get("message", "LOCAL POWER LINK UNAVAILABLE"))
+			if not bool(power_status.get("valid", true)):
+				# Power is an operating state, not a structural mounting rule. A
+				# grid may be installed dark and brought online later by moving or
+				# adding a reactor. Hull attachment and exterior clearance remain
+				# hard interlocks above.
+				readiness_warning = String(power_status.get("message", "LOCAL POWER LINK UNAVAILABLE"))
 	if not denial.is_empty():
 		_restore_relocation_snapshot(room_snapshot, horizontal_offsets, vertical_offsets)
 		_set_builder_status("RELOCATION DENIED • %s" % denial)
@@ -2092,11 +2177,17 @@ func _on_installed_piece_relocated(
 		builder_grid.call("select_room", relocated_room.get("room_id"), INVALID_CELL)
 		builder_grid.call("set_group_selection", builder_group_selection)
 	_set_builder_tool("group")
-	_set_builder_status(
-		"%s RELOCATED • AUTO-VECTOR LOCKED" % _room_type_palette_name(room_type).to_upper()
-		if facing_changed
-		else "%s RELOCATED • HULL LINK SECURED" % _room_type_palette_name(room_type).to_upper()
-	)
+	if not readiness_warning.is_empty():
+		_set_builder_status("%s RELOCATED • INSTALLED OFFLINE • %s" % [
+			_room_type_palette_name(room_type).to_upper(),
+			readiness_warning,
+		])
+	else:
+		_set_builder_status(
+			"%s RELOCATED • AUTO-VECTOR LOCKED" % _room_type_palette_name(room_type).to_upper()
+			if facing_changed
+			else "%s RELOCATED • HULL LINK SECURED" % _room_type_palette_name(room_type).to_upper()
+		)
 	_refresh_builder_after_edit()
 	_play_menu_sound(install_sound_method)
 	_pulse_builder_grid()
@@ -2208,7 +2299,7 @@ func _open_builder_add_context(cell: Vector2i) -> void:
 		builder_grid.call("set_editor_focus_cell", builder_pending_add_cell, builder_pending_add_offset)
 	_set_builder_tool("add")
 	_populate_builder_type_buttons()
-	if inventory_mode == "STATION":
+	if _uses_owned_inventory():
 		_set_builder_status("Empty drydock cell %s selected. Drag an owned cargo grid here." % cell)
 	else:
 		_set_builder_status("Empty drydock cell %s selected. Choose a room system to install." % cell)
@@ -2284,6 +2375,8 @@ func _cancel_builder_context() -> void:
 	builder_room_type = ""
 	builder_inventory_key = ""
 	builder_module_recipe = null
+	inspected_inventory_piece_id = 0
+	inspected_inventory_room_type = ""
 	_clear_builder_group_selection()
 	if builder_grid != null:
 		builder_grid.call("set_editor_focus_cell", INVALID_CELL, Vector2.ZERO)
@@ -2353,7 +2446,7 @@ func _refresh_builder_context_controls() -> void:
 		else:
 			_set_builder_status(
 				"%s SELECTED" % String(facing_room.get("display_name")).to_upper()
-				if inventory_mode == "STATION"
+				if _uses_owned_inventory()
 				else "%s selected. Direction and grouping controls are online." % _room_type_palette_name(String(facing_room.get("type_name")))
 			)
 
@@ -2378,7 +2471,7 @@ func _builder_add_cell(cell: Vector2i) -> bool:
 		_set_builder_status("Choose a cell type before installing a hull section.")
 		_play_menu_sound(denied_sound_method)
 		return false
-	if inventory_mode == "STATION" and _inventory_piece_by_id(forge_armed_piece_id, builder_room_type) == null:
+	if _uses_owned_inventory() and _inventory_piece_by_id(forge_armed_piece_id, builder_room_type) == null:
 		_set_builder_status("INSTALLATION DENIED • THAT GRID IS NOT IN CARGO")
 		_play_menu_sound(denied_sound_method)
 		return false
@@ -2415,14 +2508,10 @@ func _builder_add_cell(cell: Vector2i) -> bool:
 	var power_status := _builder_power_placement_status(builder_room_type, cell, piece_footprint)
 	if not bool(power_status["valid"]):
 		var denial_message := String(power_status["message"])
-		if inventory_mode == "FORGE":
-			placement_warnings.append(denial_message)
-		else:
-			_set_builder_status(denial_message)
-			_announce_shipyard(denial_message, true)
-			_play_menu_sound(denied_sound_method)
-			_pulse_builder_console()
-			return false
+		# Unpowered hardware is legal construction. It remains visibly dark and
+		# non-operational until a reactor field reaches it, allowing players to
+		# assemble in any order and add exterior systems before power expansion.
+		placement_warnings.append("INSTALLED OFFLINE • %s" % denial_message)
 	var existing_offset: Vector2 = source_layout.call("get_cell_offset", cell)
 	var placement_offset := Vector2.ZERO
 	if cell == builder_pending_add_cell:
@@ -2453,7 +2542,7 @@ func _builder_add_cell(cell: Vector2i) -> bool:
 		installed_room.set("weapon_fire_modes", [0])
 		room_id = installed_room.get("room_id")
 	var installed_room_type := builder_room_type
-	if inventory_mode == "STATION":
+	if _uses_owned_inventory():
 		_consume_station_inventory_piece(
 			builder_inventory_key if not builder_inventory_key.is_empty() else installed_room_type,
 			installed_room_type,
@@ -2741,7 +2830,7 @@ func _on_installed_piece_returned(room_type: String, room_id: StringName, cell: 
 		_play_menu_sound(denied_sound_method)
 		_pulse_builder_console()
 		return
-	if inventory_mode == "STATION":
+	if _uses_owned_inventory():
 		var returned_instance: Dictionary = {}
 		if is_instance_valid(inventory_owner) and inventory_owner.has_method("add_grid_piece"):
 			var added_ids: Variant = inventory_owner.call("add_grid_piece", inventory_key, 1)
@@ -2772,7 +2861,7 @@ func _on_installed_piece_returned(room_type: String, room_id: StringName, cell: 
 
 func _builder_cell_is_core(cell: Vector2i) -> bool:
 	return (
-		inventory_mode == "STATION"
+		_uses_owned_inventory()
 		and source_layout != null
 		and source_layout.has_method("is_core_cell")
 		and bool(source_layout.call("is_core_cell", cell))
@@ -3222,7 +3311,7 @@ func _set_builder_status(message: String) -> void:
 	if shipyard_notice_label != null and current_context == "edit":
 		shipyard_notice_label.text = (
 			"HARDLINE • %s" % message.get_slice(" • ", 0).strip_edges().to_upper()
-			if inventory_mode == "STATION"
+			if _uses_owned_inventory()
 			else "DRYDOCK   %s" % message.to_upper()
 		)
 		shipyard_notice_label.add_theme_color_override("font_color", Color(0.28, 1.0, 0.88, 0.95))
@@ -3423,7 +3512,7 @@ func _refresh_builder_resource_meters() -> void:
 				preview_crew_required = -_builder_room_minimum_crew(room)
 				if String(room.get("type_name")) in ["CREW", "CREW_QUARTERS"]:
 					preview_crew_capacity = -cell_count * ShipBuilderAnalyzer.CREW_CAPACITY_PER_QUARTERS_CELL
-	elif inventory_mode == "STATION" and not builder_room_type.is_empty() and forge_armed_piece_id > 0:
+	elif _uses_owned_inventory() and not builder_room_type.is_empty() and forge_armed_piece_id > 0:
 		var addition := _builder_resource_delta(builder_room_type, 1)
 		preview_capacity = float(addition.x)
 		preview_demand = float(addition.y)
@@ -3431,24 +3520,15 @@ func _refresh_builder_resource_meters() -> void:
 		if builder_room_type in ["CREW", "CREW_QUARTERS"]:
 			preview_crew_capacity = ShipBuilderAnalyzer.CREW_CAPACITY_PER_QUARTERS_CELL
 	var crew_counts := _builder_live_crew_counts()
+	if inventory_mode == "FORGE":
+		crew_counts = {"total": 0, "injured": 0}
 	var healthy_crew := maxi(int(crew_counts["total"]) - int(crew_counts["injured"]), 0)
 	var base_required := int(stats["minimum_crew"])
 	var final_required := maxi(base_required + preview_crew_required, 0)
 	var final_crew_capacity := maxi(int(stats["crew_capacity"]) + preview_crew_capacity, 0)
-	# A Forge blueprint has no meaningful live roster yet. Read its crew gauge as
-	# design capacity so Crew Quarters visibly satisfy (or fail) the ship's watch.
-	if inventory_mode == "FORGE":
-		healthy_crew = final_crew_capacity
-		crew_counts["injured"] = 0
-	var working := mini(base_required, healthy_crew)
-	var available := maxi(healthy_crew - base_required, 0)
-	var preview_reserved := 0
-	if preview_crew_required > 0:
-		preview_reserved = mini(available, preview_crew_required)
-		available -= preview_reserved
-	elif preview_crew_required < 0:
-		working = mini(final_required, healthy_crew)
-		available = maxi(healthy_crew - final_required, 0)
+	var working := 0
+	var available := healthy_crew
+	var preview_reserved := maxi(preview_crew_required, 0)
 	var missing := maxi(final_required - healthy_crew, 0)
 	var signature := "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" % [
 		stats["energy_capacity"],
@@ -3466,12 +3546,13 @@ func _refresh_builder_resource_meters() -> void:
 		return
 	builder_resource_signature = signature
 	builder_power_meter.call(
-		"set_power_state",
-		float(stats["energy_capacity"]),
-		float(stats["energy_demand"]),
-		float(stats["energy_capacity"]),
-		preview_capacity,
-		preview_demand
+		"set_power_coverage_state",
+		int(stats.get("reactor_field_count", 0)),
+		int(stats.get("powered_room_count", 0)),
+		int(stats.get("underpowered_room_count", 0)),
+		float(stats.get("reactor_field_count", 0)),
+		roundi(preview_capacity),
+		roundi(maxf(preview_demand, 0.0))
 	)
 	builder_crew_meter.call(
 		"set_crew_state",
@@ -3532,20 +3613,22 @@ func _builder_readiness_warnings() -> PackedStringArray:
 	if source_layout == null or inventory_mode != "FORGE":
 		return warnings
 	var stats := ShipBuilderAnalyzer.analyze(source_layout, selected_size)
-	var uncovered := float(stats.get("energy_uncovered_demand", 0.0))
-	var capacity := float(stats.get("energy_capacity", 0.0))
-	var demand := float(stats.get("energy_demand", 0.0))
-	if uncovered > 0.001:
-		warnings.append("ROOMS OUTSIDE REACTOR POWER FIELD • %d POWER UNLINKED" % ceili(uncovered))
-	elif demand > capacity + 0.001:
-		warnings.append("NOT ENOUGH POWER • %d REQUIRED • %d GENERATED" % [ceili(demand), floori(capacity)])
+	var missing_links := float(stats.get("missing_reactor_links", 0.0))
+	var underpowered_rooms := int(stats.get("underpowered_room_count", 0))
+	if underpowered_rooms > 0:
+		warnings.append("REACTOR COVERAGE LOW • %d ROOM%s • %d FIELD LINK%s MISSING" % [
+			underpowered_rooms,
+			"" if underpowered_rooms == 1 else "S",
+			ceili(missing_links),
+			"" if ceili(missing_links) == 1 else "S",
+		])
 	var crew_capacity := int(stats.get("crew_capacity", 0))
 	var minimum_crew := int(stats.get("minimum_crew", 0))
 	var optimal_crew := maxi(int(stats.get("optimal_crew", 0)), minimum_crew)
 	if crew_capacity < minimum_crew:
-		warnings.append("NOT ENOUGH CREW BERTHS • %d OPERATIONAL • %d AVAILABLE" % [minimum_crew, crew_capacity])
+		warnings.append("NOT ENOUGH CREW QUARTERS • MINIMUM WATCH %d • MAX CREW %d" % [minimum_crew, crew_capacity])
 	elif crew_capacity < optimal_crew:
-		warnings.append("CREW BELOW OPTIMAL • %d IDEAL • %d BERTHS" % [optimal_crew, crew_capacity])
+		warnings.append("OPTIMAL WATCH UNAVAILABLE • %d CREW NEEDED • MAX CREW %d" % [optimal_crew, crew_capacity])
 	if not _builder_hull_is_connected():
 		warnings.append("HULL HAS DISCONNECTED SECTIONS")
 	return warnings
@@ -3568,6 +3651,20 @@ func _builder_room_minimum_crew(room: Resource) -> int:
 	if recipe != null:
 		required = maxi(required, int(recipe.get("minimum_crew")))
 	return ROOM_STAFFING_RULES.effective_requirements(room, required, int(room.get("optimal_crew"))).x
+
+
+func _builder_room_optimal_crew(room: Resource) -> int:
+	if room == null:
+		return 0
+	if String(room.get("type_name")) in ["UNASSIGNED", "CREW", "CREW_QUARTERS", "MESS_HALL", "SUPPLY_STORAGE", "CARGO"]:
+		return 0
+	var minimum := int(room.get("minimum_crew"))
+	var optimal := int(room.get("optimal_crew"))
+	var recipe: Resource = room.get("module_recipe")
+	if recipe != null:
+		minimum = maxi(minimum, int(recipe.get("minimum_crew")))
+		optimal = maxi(optimal, int(recipe.get("optimal_crew")))
+	return ROOM_STAFFING_RULES.effective_requirements(room, minimum, optimal).y
 
 
 func _builder_live_crew_counts() -> Dictionary:
@@ -3632,7 +3729,18 @@ func _refresh_display() -> void:
 	_show_builder_grid(current_context == "edit")
 	if current_context != "edit":
 		preview.set_layout(source_layout, selected_size)
-	if inventory_mode == "STATION" and current_context == "edit":
+	if _uses_owned_inventory() and current_context == "edit":
+		if inspected_inventory_piece_id > 0:
+			var station_inventory_piece := _inventory_piece_by_id(
+				inspected_inventory_piece_id,
+				inspected_inventory_room_type
+			)
+			if station_inventory_piece != null:
+				dossier_panel.visible = true
+				stat_label.text = _format_inventory_piece_card(station_inventory_piece)
+				return
+			inspected_inventory_piece_id = 0
+			inspected_inventory_room_type = ""
 		if builder_tool == "group" and builder_group_selection.size() > 1 and builder_last_selected_cell == INVALID_CELL:
 			dossier_panel.visible = true
 			stat_label.text = _format_group_selection_card()
@@ -3645,6 +3753,17 @@ func _refresh_display() -> void:
 				return
 		stat_label.text = ""
 		return
+	if current_context == "edit" and inspected_inventory_piece_id > 0:
+		var forge_inventory_piece := _inventory_piece_by_id(
+			inspected_inventory_piece_id,
+			inspected_inventory_room_type
+		)
+		if forge_inventory_piece != null:
+			dossier_panel.visible = true
+			stat_label.text = _format_inventory_piece_card(forge_inventory_piece)
+			return
+		inspected_inventory_piece_id = 0
+		inspected_inventory_room_type = ""
 	if current_context == "edit" and builder_tool == "group" and builder_group_selection.size() > 1 and builder_last_selected_cell == INVALID_CELL:
 		dossier_panel.visible = true
 		stat_label.text = _format_group_selection_card()
@@ -3658,6 +3777,32 @@ func _refresh_display() -> void:
 	stat_label.text = ""
 
 
+func _format_inventory_piece_card(piece: Control) -> String:
+	var display_name := String(piece.get("display_name")).to_upper()
+	var footprint := Vector2i(piece.get("footprint"))
+	var power_capacity := maxi(int(piece.get("power_capacity")), 0)
+	var power_required := maxi(int(piece.get("power_draw")), 0)
+	var crew_required := maxi(int(piece.get("crew_required")), 0)
+	var lines := PackedStringArray([
+		"[color=#315f5b][font_size=8]◆  CARGO PROFILE[/font_size][/color]",
+		"[color=#f2a83d][font_size=14][outline_size=2][outline_color=#241407]%s[/outline_color][/outline_size][/font_size][/color]" % display_name,
+		"[color=#315f5b]━━━━━━━━━━━━[/color]",
+		"[color=#6a9d96]FRAME[/color]  [color=#bffcf2]%s[/color]" % _inventory_footprint_label(footprint),
+	])
+	if power_capacity > 0:
+		lines.append("[color=#fff12c]ϟ[/color]  PROJECTS %d REACTOR FIELD%s" % [
+			power_capacity,
+			"" if power_capacity == 1 else "S",
+		])
+	elif power_required > 0:
+		lines.append(POWER_REQUIREMENT_DISPLAY.bbcode(power_required, float(power_required)))
+	if crew_required > 0:
+		lines.append(CREW_REQUIREMENT_DISPLAY.status_bbcode(crew_required, crew_required, true))
+	lines.append("")
+	lines.append("[color=#72fff0]DRAG TO THE HULL TO INSTALL[/color]")
+	return "\n".join(lines)
+
+
 func _format_station_room_card(room: Resource) -> String:
 	var display_room := room
 	if builder_last_selected_cell != INVALID_CELL:
@@ -3666,6 +3811,7 @@ func _format_station_room_card(room: Resource) -> String:
 			display_room = selected_mount
 	var room_type := String(display_room.get("type_name"))
 	var minimum_crew := _builder_room_minimum_crew(room)
+	var optimal_crew := _builder_room_optimal_crew(room)
 	var piece_count := maxi(int(display_room.get("installed_piece_count")), 1)
 	var power_delta := ShipBuilderAnalyzer.room_power_delta(room_type, piece_count, display_room)
 	var display_name := String(display_room.get("display_name")).to_upper()
@@ -3677,29 +3823,27 @@ func _format_station_room_card(room: Resource) -> String:
 	]
 	var field := _selected_room_power_field(room)
 	if power_delta.x > 0.0:
-		var capacity := float(field.get("capacity", power_delta.x))
-		var demand := float(field.get("demand", 0.0))
-		var reserve := maxf(capacity - demand, 0.0)
-		var overloaded := demand > capacity + 0.001
+		var field_count := int(field.get("field_count", roundi(power_delta.x)))
+		var supported := int((field.get("room_ids", []) as Array).size()) - int((field.get("generator_ids", []) as Array).size())
+		var missing := float(field.get("missing_links", 0.0))
 		lines.append("")
 		lines.append("[color=#6a9d96]LOCAL FIELD[/color]")
-		lines.append(_compact_power_pips(capacity, demand))
-		lines.append("[color=#72fff0]%d[/color] OUT  [color=#f2a83d]%d[/color] LOAD  [color=%s]%d[/color] OPEN" % [
-			roundi(capacity), roundi(demand), "#ff4b2b" if overloaded else "#7dffb1", roundi(reserve),
+		lines.append(_compact_power_pips(field_count, field_count))
+		lines.append("[color=#72fff0]%d[/color] REACTOR FIELD%s  [color=#f2a83d]%d[/color] ROOMS COVERED" % [
+			field_count, "" if field_count == 1 else "S", maxi(supported, 0),
 		])
-		if overloaded:
-			lines.append("[color=#ff4b2b]FIELD SATURATED[/color]")
+		if missing > 0.001:
+			lines.append("[color=#ff4b2b]%d FIELD LINKS MISSING[/color]" % ceili(missing))
 	elif power_delta.y > 0.0:
-		var factor := float(field.get("factor", 0.0))
-		var power_required := maxi(ceili(power_delta.y), 1)
-		var power_online := clampi(floori(float(power_required) * factor + 0.001), 0, power_required)
+		var report := ShipBuilderAnalyzer.power_network_report(source_layout)
+		var room_id: StringName = room.get("room_id")
+		var power_required := int((report.get("room_requirements", {}) as Dictionary).get(room_id, maxi(ceili(power_delta.y), 1)))
+		var power_supplied := clampf(float((report.get("room_coverage", {}) as Dictionary).get(room_id, 0.0)), 0.0, float(power_required))
 		lines.append("")
-		lines.append(_requirement_icon_strip(
-			"⚡", power_required, power_online, "#f2a83d", "#35291e"
-		) + _crew_requirement_icons(room, minimum_crew))
-	elif minimum_crew > 0:
+		lines.append(POWER_REQUIREMENT_DISPLAY.bbcode(power_required, power_supplied) + _crew_requirement_icons(room, optimal_crew))
+	elif optimal_crew > 0:
 		lines.append("")
-		lines.append(_crew_requirement_icons(room, minimum_crew).strip_edges())
+		lines.append(_crew_requirement_icons(room, optimal_crew).strip_edges())
 	lines.append_array(_room_performance_instruments(display_room))
 	return "\n".join(lines)
 
@@ -3765,28 +3909,15 @@ func _crew_requirement_icons(room: Resource, required: int) -> String:
 		return ""
 	var operating := 0
 	var crew := get_tree().get_first_node_in_group("crew_simulation")
-	if is_instance_valid(crew) and crew.has_method("get_room_staffing"):
+	if inventory_mode != "FORGE" and is_instance_valid(crew) and crew.has_method("get_room_staffing"):
 		operating = int(crew.call("get_room_staffing", StringName(room.get("room_id"))))
-	return "    " + _requirement_icon_strip(
-		"♟", required, mini(operating, required), "#46fff0", "#173b3a"
-	)
-
-
-func _requirement_icon_strip(
-	icon: String,
-	required: int,
-	online: int,
-	lit_color: String,
-	dark_color: String
-) -> String:
-	var result := ""
-	var is_power_icon := lit_color == "#f2a83d"
-	var lit_path := "res://assets/sprites/ui/icons/power.png" if is_power_icon else "res://assets/sprites/ui/icons/crew.png"
-	var dark_path := "res://assets/sprites/ui/icons/power_dark.png" if is_power_icon else "res://assets/sprites/ui/icons/crew_dark.png"
-	for index: int in range(maxi(required, 0)):
-		var icon_path := lit_path if index < online else dark_path
-		result += "[img=16x16]%s[/img]" % icon_path
-	return result
+	var eventual_crew_available := true
+	if source_layout != null:
+		var stats := ShipBuilderAnalyzer.analyze(source_layout, selected_size)
+		eventual_crew_available = int(stats.get("crew_capacity", 0)) >= int(stats.get("optimal_crew", 0))
+	if not embedded_refit_mode and eventual_crew_available:
+		operating = required
+	return "    " + CREW_REQUIREMENT_DISPLAY.status_bbcode(required, mini(operating, required), eventual_crew_available)
 
 
 func _format_idle_terminal() -> String:
@@ -3806,22 +3937,23 @@ func _format_idle_terminal() -> String:
 func _format_connected_terminal(stats: Dictionary) -> String:
 	var size_value := _full_grid_size(Vector2i(stats["build_size"]))
 	var hull_size: Vector2i = stats["hull_size"]
-	var energy_capacity := float(stats["energy_capacity"])
-	var energy_demand := float(stats["energy_demand"])
-	var energy_margin := energy_capacity - energy_demand
+	var reactor_fields := int(stats.get("reactor_field_count", 0))
+	var powered_rooms := int(stats.get("powered_room_count", 0))
+	var underpowered_rooms := int(stats.get("underpowered_room_count", 0))
 	var room_counts := _format_counts(stats["room_counts"])
 	var shield_capacity := float(stats["shield_capacity"])
 	var shield_regen := float(stats["shield_regen"])
 	var thrust_rating := float(stats["thrust_rating"])
 	var weapon_count := int(stats["weapon_count"])
 	var hangar_capacity := int(stats["hangar_capacity"])
+	var current_crew := int(_builder_live_crew_counts().get("total", 0))
 	return "\n".join([
 		_instrument_header("VESSEL STATUS", "drydock link active"),
 		_status_chip("FRAME", true) + "  %dx%d full-room bay • %dx%d quarter-cell hull • %d cells" % [size_value.x, size_value.y, hull_size.x, hull_size.y, int(stats["occupied_cells"])],
 		"",
 		_instrument_section("SHIP LOAD"),
-		_meter_line("Power", energy_demand, maxf(energy_capacity, 1.0), "%d / %d   %d open" % [roundi(energy_demand), roundi(energy_capacity), roundi(maxf(energy_margin, 0.0))]),
-		_meter_line("Crew", float(stats["minimum_crew"]), maxf(float(stats["crew_capacity"]), 1.0), "%d needed   %d berths" % [int(stats["minimum_crew"]), int(stats["crew_capacity"])]),
+		_meter_line("Power coverage", float(powered_rooms), maxf(float(powered_rooms + underpowered_rooms), 1.0), "%d reactor fields   %d rooms low" % [reactor_fields, underpowered_rooms]),
+		_meter_line("Personnel register", float(current_crew), maxf(float(stats["crew_capacity"]), 1.0), "CURRENT CREW %d   MAX CREW %d" % [current_crew, int(stats["crew_capacity"])]),
 		"",
 		_instrument_section("COMBAT SYSTEMS"),
 		_meter_line("Shield bank", shield_capacity, 100.0, "%d reserve   %.1f/sec" % [roundi(shield_capacity), shield_regen]),
@@ -3851,8 +3983,9 @@ func _format_connected_terminal(stats: Dictionary) -> String:
 		"Hull footprint   %d x %d occupied field" % [hull_size.x, hull_size.y],
 		"",
 		"[color=#f2a83d]Live Readouts[/color]",
-		"Crew berths      %d" % int(stats["crew_capacity"]),
-		"Power reserve    %s%d units" % ["+" if energy_margin >= 0.0 else "", roundi(energy_margin)],
+		"Current Crew     %d" % current_crew,
+		"Max Crew         %d" % int(stats["crew_capacity"]),
+		"Power coverage   %d fields • %d rooms low" % [reactor_fields, underpowered_rooms],
 		"Shield reserve   %d" % roundi(float(stats["shield_capacity"])),
 		"Drive rating     %d" % roundi(float(stats["thrust_rating"])),
 		"Weapon mounts    %d" % int(stats["weapon_count"]),
@@ -3901,7 +4034,9 @@ func _format_archive_terminal() -> String:
 			selected_blueprint_layout,
 			Vector2i(int(selected_blueprint_layout.get("columns")), int(selected_blueprint_layout.get("rows")))
 		)
-		var energy_margin := float(stats["energy_capacity"]) - float(stats["energy_demand"])
+		var reactor_fields := int(stats.get("reactor_field_count", 0))
+		var powered_rooms := int(stats.get("powered_room_count", 0))
+		var underpowered_rooms := int(stats.get("underpowered_room_count", 0))
 		var archive_size: Vector2i = stats["build_size"]
 		var archive_full_size := _full_grid_size(archive_size)
 		return "\n".join([
@@ -3914,8 +4049,8 @@ func _format_archive_terminal() -> String:
 				archive_full_size.y,
 				int(stats["occupied_cells"]),
 			], 12),
-			_meter_line("Crew berths", float(stats["crew_capacity"]), maxf(float(stats["optimal_crew"]), 1.0), "%d bunks" % int(stats["crew_capacity"])),
-			_meter_line("Power", float(stats["energy_demand"]), maxf(float(stats["energy_capacity"]), 1.0), "%d / %d   %d open" % [roundi(float(stats["energy_demand"])), roundi(float(stats["energy_capacity"])), roundi(maxf(energy_margin, 0.0))]),
+			_meter_line("Personnel register", 0.0, maxf(float(stats["crew_capacity"]), 1.0), "CURRENT CREW 0   MAX CREW %d" % int(stats["crew_capacity"])),
+			_meter_line("Power coverage", float(powered_rooms), maxf(float(powered_rooms + underpowered_rooms), 1.0), "%d reactor fields   %d rooms low" % [reactor_fields, underpowered_rooms]),
 			_meter_line("Weapon mounts", float(stats["weapon_count"]), 8.0, "%d hardpoints" % int(stats["weapon_count"])),
 			"",
 			_instrument_section("COMMIT OPTIONS"),
@@ -3932,11 +4067,9 @@ func _format_archive_terminal() -> String:
 				int(selected_blueprint_layout.get("rows")),
 				int(stats["occupied_cells"]),
 			],
-			"Crew berths  %d" % int(stats["crew_capacity"]),
-			"Power net  %s%d" % [
-				"+" if float(stats["energy_capacity"]) - float(stats["energy_demand"]) >= 0.0 else "",
-				roundi(float(stats["energy_capacity"]) - float(stats["energy_demand"])),
-			],
+			"Current Crew  0",
+			"Max Crew      %d" % int(stats["crew_capacity"]),
+			"Power coverage  %d fields • %d rooms low" % [reactor_fields, underpowered_rooms],
 			"Weapons  %d mounts" % int(stats["weapon_count"]),
 			"Services  ENG %d   MED %d   SEC %d   Craft %d" % [
 				int(stats["damage_control_channels"]),
@@ -3990,7 +4123,11 @@ func _builder_room_cells(room: Resource) -> Dictionary:
 
 
 func _requires_connected_live_hull() -> bool:
-	return embedded_refit_mode or inventory_mode == "STATION"
+	return embedded_refit_mode or _uses_owned_inventory()
+
+
+func _uses_owned_inventory() -> bool:
+	return inventory_mode in ["STATION", "ESCAPE"]
 
 
 func _builder_hull_is_connected() -> bool:
@@ -4288,9 +4425,10 @@ func _format_stats(stats: Dictionary) -> String:
 	var hull_size: Vector2i = stats["hull_size"]
 	var weapon_families := _format_counts(stats["weapon_families"])
 	var room_counts := _format_counts(stats["room_counts"])
-	var energy_capacity := float(stats["energy_capacity"])
-	var energy_demand := float(stats["energy_demand"])
-	var energy_margin := energy_capacity - energy_demand
+	var reactor_fields := int(stats.get("reactor_field_count", 0))
+	var powered_rooms := int(stats.get("powered_room_count", 0))
+	var underpowered_rooms := int(stats.get("underpowered_room_count", 0))
+	var current_crew := int(_builder_live_crew_counts().get("total", 0))
 	return "\n".join([
 		_instrument_header("ACTIVE HULL LINK", _layout_display_name(source_layout)),
 		_status_chip("MIRROR", true) + "  command ship linked",
@@ -4300,8 +4438,8 @@ func _format_stats(stats: Dictionary) -> String:
 		"[color=#6a9d96]Hull footprint[/color]  %d x %d occupied field" % [hull_size.x, hull_size.y],
 		"",
 		_instrument_section("LIVE SHIP PULSE"),
-		_meter_line("Crew space", float(stats["crew_capacity"]), maxf(float(stats["optimal_crew"]), 1.0), "%d berths" % int(stats["crew_capacity"])),
-		_meter_line("Power", energy_demand, maxf(energy_capacity, 1.0), "%d / %d   %d open" % [roundi(energy_demand), roundi(energy_capacity), roundi(maxf(energy_margin, 0.0))]),
+		_meter_line("Personnel register", float(current_crew), maxf(float(stats["crew_capacity"]), 1.0), "CURRENT CREW %d   MAX CREW %d" % [current_crew, int(stats["crew_capacity"])]),
+		_meter_line("Power coverage", float(powered_rooms), maxf(float(powered_rooms + underpowered_rooms), 1.0), "%d reactor fields   %d rooms low" % [reactor_fields, underpowered_rooms]),
 		_meter_line("Shield reserve", float(stats["shield_capacity"]), 100.0, "%d banked" % roundi(float(stats["shield_capacity"]))),
 		_meter_line("Drive rating", float(stats["thrust_rating"]), 48.0, "%d thrust" % roundi(float(stats["thrust_rating"]))),
 		_meter_line("Weapon mounts", float(stats["weapon_count"]), 8.0, "%d linked" % int(stats["weapon_count"])),
@@ -4314,8 +4452,8 @@ func _format_stats(stats: Dictionary) -> String:
 		"[color=#f2a83d]FRAME[/color]  %d×%d envelope   %d occupied" % [size_value.x, size_value.y, int(stats["occupied_cells"])],
 		"Footprint   %d×%d hull cells" % [hull_size.x, hull_size.y],
 		"",
-		"[color=#f2a83d]CREW[/color]   berths %d   watch %d/%d" % [int(stats["crew_capacity"]), int(stats["minimum_crew"]), int(stats["optimal_crew"])],
-		"[color=#f2a83d]POWER[/color]  gen %d   draw %d   net %s%d" % [roundi(energy_capacity), roundi(energy_demand), "+" if energy_margin >= 0.0 else "", roundi(energy_margin)],
+		"[color=#f2a83d]PERSONNEL REGISTER[/color]   CURRENT CREW %d   MAX CREW %d" % [current_crew, int(stats["crew_capacity"])],
+		"[color=#f2a83d]POWER[/color]  %d reactor fields   %d rooms covered   %d low" % [reactor_fields, powered_rooms, underpowered_rooms],
 		"[color=#f2a83d]SHIELD[/color] reserve %d   regen %.1f/s" % [roundi(float(stats["shield_capacity"])), float(stats["shield_regen"])],
 		"[color=#f2a83d]DRIVE[/color]  thrust %d   maneuver %d" % [roundi(float(stats["thrust_rating"])), roundi(float(stats["maneuver_rating"]))],
 		"",
@@ -4412,6 +4550,14 @@ func _format_selected_room_card(room: Resource) -> String:
 	var facing_name := _rotation_name(facing_quarters) if facing_quarters >= 0 else "AUTO"
 	var structure_rating := roundi(float(room.get("maximum_health")))
 	var crew_capacity := maxi(optimal_crew, minimum_crew)
+	var crew_operating := 0
+	var crew := get_tree().get_first_node_in_group("crew_simulation")
+	if inventory_mode != "FORGE" and is_instance_valid(crew) and crew.has_method("get_room_staffing"):
+		crew_operating = int(crew.call("get_room_staffing", StringName(room.get("room_id"))))
+	var ship_stats := ShipBuilderAnalyzer.analyze(source_layout, selected_size) if source_layout != null else {}
+	var eventual_crew_available := int(ship_stats.get("crew_capacity", 0)) >= int(ship_stats.get("optimal_crew", 0))
+	if not embedded_refit_mode and eventual_crew_available:
+		crew_operating = crew_capacity
 	var has_direction := EXPLICIT_GROUP_ROOM_TYPES.has(room_type)
 	var power_profile := _room_power_profile(room, cell_count)
 	var requirement_lines := _room_build_requirement_lines(room)
@@ -4436,6 +4582,7 @@ func _format_selected_room_card(room: Resource) -> String:
 		_instrument_section("CREW JACKS"),
 		_meter_line("Watch floor", float(minimum_crew), float(maxi(crew_capacity, 1)), "%d crew required" % minimum_crew, 10),
 		_meter_line("Full station", float(crew_capacity), float(maxi(crew_capacity, 1)), "%d crew optimal" % crew_capacity, 10),
+		CREW_REQUIREMENT_DISPLAY.status_bbcode(crew_capacity, crew_operating, eventual_crew_available) + "  [color=#6a9d96]%s[/color]" % CREW_REQUIREMENT_DISPLAY.plain_text(crew_capacity, crew_operating, eventual_crew_available),
 		"",
 		_instrument_section("POWER FIELD"),
 		_signal_line("Feed", power_profile, not power_profile.begins_with("No active")),
@@ -4752,9 +4899,19 @@ func _compartment_contact_map(room: Resource) -> PackedStringArray:
 func _room_power_profile(room: Resource, cell_count: int) -> String:
 	var delta := ShipBuilderAnalyzer.room_power_delta(String(room.get("type_name")), cell_count, room)
 	if delta.x > 0.0:
-		return "POWER • +%d GENERATION" % roundi(delta.x)
+		return "POWER • REACTOR FIELD SOURCE"
 	if delta.y > 0.0:
-		return "POWER • %d REQUIRED" % roundi(delta.y)
+		var required := maxi(roundi(delta.y), 1)
+		var supplied := 0.0
+		if source_layout != null:
+			var report := ShipBuilderAnalyzer.power_network_report(source_layout)
+			var room_id: StringName = room.get("room_id")
+			required = int((report.get("room_requirements", {}) as Dictionary).get(room_id, required))
+			supplied = float((report.get("room_coverage", {}) as Dictionary).get(room_id, 0.0))
+		return "%s  [color=#6a9d96]%s[/color]" % [
+			POWER_REQUIREMENT_DISPLAY.bbcode(required, supplied),
+			POWER_REQUIREMENT_DISPLAY.plain_text(required, supplied),
+		]
 	return "POWER • PASSIVE"
 
 
@@ -4764,7 +4921,7 @@ func _room_output_profile(room: Resource, cell_count: int) -> PackedStringArray:
 		"CREW", "CREW_QUARTERS":
 			lines.append("Living capacity: %d crew" % (cell_count * ShipBuilderAnalyzer.CREW_CAPACITY_PER_QUARTERS_CELL))
 		"REACTOR", "POWER", "ENGINE":
-			lines.append("Power generation: +%d" % roundi(float(cell_count) * ShipBuilderAnalyzer.POWER_PER_GENERATOR_CELL))
+			lines.append("Power coverage: unlimited inside reactor radius")
 		"SHIELDS":
 			lines.append("Shield reserve: %d" % roundi(float(cell_count) * 55.0))
 			lines.append("Shield recovery: %.1f per second" % (float(cell_count) * 0.75))

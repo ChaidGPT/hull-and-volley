@@ -14,6 +14,7 @@ family = 0
 tags = PackedStringArray("weapon", "cannon", "explosive", "heavy")
 footprint = ExtResource("2")
 compatible_grid_types = PackedStringArray("WEAPONS")
+required_reactor_fields = 2
 power_draw = 2.0
 minimum_crew = 3
 optimal_crew = 5

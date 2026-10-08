@@ -4,6 +4,8 @@ const EXPLICIT_GROUP_ROOM_TYPES := ["WEAPONS", "PROPULSION", "HANGAR", "SHIELDS"
 const INVALID_CELL := Vector2i(2147483647, 2147483647)
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
 const SHIP_RESOURCE_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const CREW_REQUIREMENT_DISPLAY := preload("res://scripts/crew_requirement_display.gd")
 const GRID_TYPE_CATEGORIES := {
 	"CREW": ["COMMAND", "CREW_QUARTERS", "MESS_HALL", "MEDICAL"],
 	"ENGINEERING": ["PROPULSION", "POWER", "SHIELDS", "WORKSHOP"],
@@ -255,10 +257,14 @@ func _update_arcade_resource_meters() -> void:
 	if layout == null:
 		return
 	var stats: Dictionary = SHIP_RESOURCE_ANALYZER.analyze(layout)
-	var designed_capacity := float(stats["energy_capacity"])
-	var designed_demand := float(stats["energy_demand"])
-	var online_capacity := _operational_power_capacity(layout, designed_capacity)
-	deck_power_meter.call("set_power_state", designed_capacity, designed_demand, online_capacity)
+	var report: Dictionary = simulation.get_power_network_report() if is_instance_valid(simulation) and simulation.has_method("get_power_network_report") else SHIP_RESOURCE_ANALYZER.power_network_report(layout)
+	deck_power_meter.call(
+		"set_power_coverage_state",
+		int(report.get("reactor_field_count", stats.get("reactor_field_count", 0))),
+		int(report.get("powered_room_count", stats.get("powered_room_count", 0))),
+		int(report.get("underpowered_room_count", stats.get("underpowered_room_count", 0))),
+		float(report.get("active_reactor_fields", stats.get("reactor_field_count", 0)))
+	)
 	var crew_state := _live_crew_meter_state()
 	var crew := get_tree().get_first_node_in_group("crew_simulation")
 	var missing_stations := int(crew.call("get_unfilled_minimum_stations")) if is_instance_valid(crew) else 0
@@ -277,21 +283,6 @@ func _update_arcade_resource_meters() -> void:
 	)
 	if is_instance_valid(crew) and crew.has_method("get_reinforcement_status"):
 		deck_crew_meter.call("set_reinforcement_state", crew.call("get_reinforcement_status"))
-
-
-func _operational_power_capacity(layout: Resource, fallback_capacity: float) -> float:
-	if not is_instance_valid(simulation):
-		return fallback_capacity
-	var total := 0.0
-	var found_generator := false
-	for room: Resource in layout.get("rooms"):
-		if not String(room.get("type_name")) in ["POWER", "REACTOR", "ENGINE"]:
-			continue
-		found_generator = true
-		var cell_count := _room_cell_count(room)
-		var efficiency: float = simulation.get_room_efficiency(room.get("room_id"))
-		total += float(cell_count) * SHIP_RESOURCE_ANALYZER.POWER_PER_GENERATOR_CELL * clampf(efficiency, 0.0, 1.0)
-	return total if found_generator else fallback_capacity
 
 
 func _live_crew_meter_state() -> Dictionary:
@@ -319,6 +310,14 @@ func _live_crew_meter_state() -> Dictionary:
 		else:
 			state["available"] = int(state["available"]) + 1
 	return state
+
+
+func _ship_has_full_crew_capacity() -> bool:
+	var layout: Resource = settlement_grid.get("ship_layout") if is_instance_valid(settlement_grid) else null
+	if layout == null:
+		return false
+	var stats := SHIP_RESOURCE_ANALYZER.analyze(layout)
+	return int(stats.get("crew_capacity", 0)) >= int(stats.get("optimal_crew", 0))
 
 
 func _on_room_selected(room_id: StringName) -> void:
@@ -1289,9 +1288,12 @@ func _on_recipe_selected(index: int) -> void:
 		return
 	var match: Dictionary = recipe_selector.get_item_metadata(index)
 	var recipe: Resource = match["recipe"]
-	recipe_stats.text = "%s\nPOWER %.1f • CREW %d/%d • HEALTH %d\nFACING %s • SHAPE ROTATION %d DEG%s" % [
+	var required_fields := int(recipe.get("required_reactor_fields"))
+	if required_fields <= 0 and float(recipe.get("power_draw")) > 0.0:
+		required_fields = maxi(ceili(float(recipe.get("power_draw"))), 1)
+	recipe_stats.text = "%s\nPOWER LINKS %s • CREW %d/%d • HEALTH %d\nFACING %s • SHAPE ROTATION %d DEG%s" % [
 		recipe.get("description"),
-		float(recipe.get("power_draw")),
+		POWER_REQUIREMENT_DISPLAY.plain_text(required_fields, 0.0),
 		int(recipe.get("minimum_crew")),
 		int(recipe.get("optimal_crew")),
 		roundi(recipe.get("maximum_health")),
@@ -1585,6 +1587,9 @@ func _update_room_staffing_controls(crew: Node, requirements: Vector2i, assigned
 		return
 	var present_count: int = crew.call("get_room_present_count", selected_room_id)
 	var operating_count: int = crew.call("get_room_staffing", selected_room_id)
+	var layout: Resource = settlement_grid.get("ship_layout")
+	var ship_stats := SHIP_RESOURCE_ANALYZER.analyze(layout)
+	var future_capacity_sufficient := int(ship_stats.get("crew_capacity", 0)) >= int(ship_stats.get("optimal_crew", 0))
 	room_staffing_meter.call(
 		"set_staffing_state",
 		requirements.x,
@@ -1592,7 +1597,8 @@ func _update_room_staffing_controls(crew: Node, requirements: Vector2i, assigned
 		assigned_count,
 		present_count,
 		operating_count,
-		false
+		false,
+		future_capacity_sufficient
 	)
 	var priority_label := String(crew.call("get_room_staffing_priority_label", selected_room_id))
 	auto_assign_crew_button.visible = true
@@ -1996,7 +2002,8 @@ func _system_crew_detail_text(crew: Node) -> String:
 		if _crew_station_state_label(member) == "AT STATION":
 			operating += 1
 		names.append("%s:%s" % [String(member["name"]), _crew_station_state_label(member)])
-	var crew_line := "CREW • %d OPERATING / %d PRESENT / %d EN ROUTE / %d OPTIMAL" % [operating, present, en_route, requirements.y]
+	var crew_line := "CREW STATIONS • %s" % CREW_REQUIREMENT_DISPLAY.plain_text(requirements.y, operating, _ship_has_full_crew_capacity())
+	crew_line += "\nMOVEMENT TRACE • %d PRESENT • %d EN ROUTE" % [present, en_route]
 	if names.is_empty():
 		return crew_line + "\nASSIGNED • NONE"
 	return crew_line + "\nASSIGNED • %s" % "  |  ".join(names)
@@ -2211,7 +2218,7 @@ func _update_selected_room_panel() -> void:
 		var assigned: int = crew.call("get_room_assigned_count", selected_room_id)
 		var present: int = crew.call("get_room_present_count", selected_room_id)
 		var operating: int = crew.call("get_room_staffing", selected_room_id)
-		selected_room_crew.text = "CREW • %d OPERATING / %d PRESENT / %d ASSIGNED / %d OPTIMAL" % [operating, present, assigned, requirements.y]
+		selected_room_crew.text = "CREW STATIONS • %s" % CREW_REQUIREMENT_DISPLAY.plain_text(requirements.y, operating, _ship_has_full_crew_capacity())
 		_update_room_staffing_controls(crew, requirements, assigned)
 		_update_damage_control_readout(crew, room)
 	else:

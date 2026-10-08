@@ -4,6 +4,8 @@ extends Control
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
 const SHIP_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
 const ROOM_STAFFING_RULES := preload("res://scripts/room_staffing_rules.gd")
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const TACTICAL_SHIP_VISUAL := preload("res://scripts/tactical_ship_visual.gd")
 
 @export var grid_color := Color(0.12, 0.36, 0.38, 0.45)
 @export var envelope_color := Color(0.22, 0.9, 0.9, 0.95)
@@ -19,6 +21,8 @@ var tooltip_origin := Vector2.ZERO
 var hovered_room: Resource
 var callout_alpha := 0.0
 var callout_target_alpha := 0.0
+var authored_visual_mode := false
+var authored_deck_visual: Control
 
 
 func _ready() -> void:
@@ -62,13 +66,73 @@ func _clear_room_tooltip() -> void:
 
 
 func set_layout(layout: Resource, size: Vector2i) -> void:
+	authored_visual_mode = false
+	if is_instance_valid(authored_deck_visual):
+		authored_deck_visual.queue_free()
+		authored_deck_visual = null
 	ship_layout = layout
 	preview_size = size
 	queue_redraw()
 
 
+## Shows the exact authored deck/module artwork used by the live ship instead
+## of the compact blueprint shorthand. Choice cards use this close inspection
+## mode so weapon barrels, room skins, and quarter-grid overlays are legible.
+func set_authored_layout(layout: Resource) -> void:
+	authored_visual_mode = true
+	ship_layout = layout
+	preview_size = Vector2i.ZERO
+	clip_contents = true
+	if not is_instance_valid(authored_deck_visual):
+		authored_deck_visual = TACTICAL_SHIP_VISUAL.new() as Control
+		authored_deck_visual.name = "AuthoredDeckVisual"
+		authored_deck_visual.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		authored_deck_visual.set("blueprint_preview_mode", true)
+		authored_deck_visual.set("tactical_hull_only_mode", false)
+		authored_deck_visual.set("ship_layout", ship_layout)
+		authored_deck_visual.process_mode = Node.PROCESS_MODE_DISABLED
+		add_child(authored_deck_visual)
+	elif authored_deck_visual.is_inside_tree():
+		authored_deck_visual.call("set_ship_layout", ship_layout)
+	else:
+		authored_deck_visual.set("ship_layout", ship_layout)
+	call_deferred("_sync_authored_deck_visual")
+	queue_redraw()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_RESIZED and authored_visual_mode:
+		call_deferred("_sync_authored_deck_visual")
+
+
+func _sync_authored_deck_visual() -> void:
+	if not authored_visual_mode or not is_instance_valid(authored_deck_visual) or ship_layout == null:
+		return
+	var occupied: Rect2i = ship_layout.call("get_occupied_bounds", false)
+	if occupied.size.x <= 0 or occupied.size.y <= 0 or size.x <= 1.0 or size.y <= 1.0:
+		return
+	# TacticalShipVisual renders at ten pixels per quarter-grid cell. Reserve
+	# room for barrels/nozzles outside the hull, then scale the authored object
+	# until it dominates the inspection viewport.
+	var hull_pixels := Vector2(occupied.size) * 10.0
+	var exterior_allowance := Vector2(26.0, 26.0)
+	var available := Vector2(maxf(size.x - 24.0, 1.0), maxf(size.y - 24.0, 1.0))
+	var fit_scale := minf(
+		available.x / maxf(hull_pixels.x + exterior_allowance.x, 1.0),
+		available.y / maxf(hull_pixels.y + exterior_allowance.y, 1.0)
+	)
+	fit_scale = clampf(fit_scale, 1.0, 12.0)
+	authored_deck_visual.scale = Vector2.ONE * fit_scale
+	var authored_hull_center := Vector2(10.0, 22.0) + hull_pixels * 0.5
+	authored_deck_visual.position = size * 0.5 - authored_hull_center * fit_scale
+
+
 func _draw() -> void:
 	if ship_layout == null and preview_size == Vector2i.ZERO:
+		return
+	if authored_visual_mode:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.003, 0.014, 0.018, 0.96), true)
+		draw_rect(Rect2(Vector2.ONE, size - Vector2.ONE * 2.0), Color(0.12, 0.72, 0.7, 0.42), false, 1.0)
 		return
 	var build_origin := Vector2i.ZERO
 	var build_size := preview_size
@@ -266,9 +330,16 @@ func _room_tooltip(room: Resource) -> String:
 	if not effect.is_empty():
 		lines.append(effect)
 	if power.x > 0.0:
-		lines.append("REACTOR OUTPUT • +%d POWER" % roundi(power.x))
+		lines.append("REACTOR FIELD • UNLIMITED LOCAL POWER")
 	elif power.y > 0.0:
-		lines.append("SYSTEM DRAW • %d POWER" % roundi(power.y))
+		var required := maxi(roundi(power.y), 1)
+		var supplied := 0.0
+		if ship_layout != null:
+			var report := SHIP_ANALYZER.power_network_report(ship_layout)
+			var room_id: StringName = room.get("room_id")
+			required = int((report.get("room_requirements", {}) as Dictionary).get(room_id, required))
+			supplied = float((report.get("room_coverage", {}) as Dictionary).get(room_id, 0.0))
+		lines.append("POWER LINKS • %s" % POWER_REQUIREMENT_DISPLAY.plain_text(required, supplied))
 	var optimal_crew := int(room.get("optimal_crew"))
 	var minimum_crew := int(room.get("minimum_crew"))
 	var recipe: Resource = room.get("module_recipe")

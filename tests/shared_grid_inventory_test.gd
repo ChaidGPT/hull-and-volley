@@ -44,12 +44,15 @@ func _run() -> void:
 	var tactical_visual := ship_view.get_node_or_null("%PlaceholderShip") as Control if ship_view != null else null
 	var tactical_zoom := ship_view.get_node_or_null("%ZoomController") if ship_view != null else null
 	var live_deck_visual := ship_view.get_node_or_null("World/LiveDeckDetail") as Control if ship_view != null else null
+	var live_shield_visual := ship_view.get("shield_visual") as Control if ship_view != null else null
 	_check(tactical_visual != null and tactical_visual.has_method("set_deck_detail_visible"), "tactical ship cannot resolve into its deck plan", failures)
-	_check(live_deck_visual != null, "unified command view is missing its cross-faded live deck layer", failures)
+	_check(live_deck_visual != null, "unified command view is missing its authored ship layer", failures)
+	_check(live_shield_visual != null and live_shield_visual.get_parent() == live_deck_visual, "active shield field is still attached to the hidden tactical silhouette", failures)
 	if tactical_visual != null and tactical_zoom != null:
 		tactical_zoom.call("set_zoom_level", 2.5)
 		ship_view.call("_process", 0.016)
 		_check(live_deck_visual != null and live_deck_visual.visible and live_deck_visual.modulate.a > 0.99, "close tactical zoom does not reveal deck detail", failures)
+		_check(live_deck_visual != null and float(live_deck_visual.get("crew_detail_alpha")) > 0.99, "crew do not resolve at close tactical zoom", failures)
 		var player_layout: Resource = main.get_node("ShipSimulation").get("ship_layout")
 		var first_room: Resource = player_layout.get("rooms")[0] if player_layout != null and not player_layout.get("rooms").is_empty() else null
 		if first_room != null:
@@ -60,10 +63,12 @@ func _run() -> void:
 			_check(StringName(ship_view.get("selected_compartment_id")) == StringName(first_room.get("room_id")), "compartment CRT did not retain the clicked room", failures)
 		tactical_zoom.call("set_zoom_level", float(ship_view.get("deck_detail_zoom")))
 		ship_view.call("_process", 0.016)
-		_check(float(ship_view.get("deck_detail_mix")) > 0.0 and float(ship_view.get("deck_detail_mix")) < 1.0, "ship exterior still swaps abruptly instead of blending", failures)
+		_check(float(ship_view.get("deck_detail_mix")) > 0.0 and float(ship_view.get("deck_detail_mix")) < 1.0, "close-range interaction detail does not blend smoothly", failures)
 		tactical_zoom.call("set_zoom_level", 1.0)
 		ship_view.call("_process", 0.016)
-		_check(live_deck_visual != null and not live_deck_visual.visible, "deck detail remains forced on at tactical zoom", failures)
+		_check(live_deck_visual != null and live_deck_visual.visible and live_deck_visual.modulate.a > 0.99, "authored ship visuals disappear at tactical zoom", failures)
+		_check(live_deck_visual != null and float(live_deck_visual.get("crew_detail_alpha")) < 0.01, "crew remain fully rendered at distant tactical zoom", failures)
+		_check(tactical_visual.modulate.a < 0.01, "legacy tactical silhouette is still painted over the authored ship", failures)
 		_check(StringName(ship_view.get("selected_compartment_id")) == &"", "compartment CRT remains open after returning to tactical zoom", failures)
 		ship_view.call("_select_tactical_ship", 0)
 		await create_timer(0.35).timeout

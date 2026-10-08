@@ -39,6 +39,10 @@ enum RegionType {
 @export_range(0.0, 40.0, 1.0) var visual_object_gap := 4.0
 ## Extra clearance between collidable asteroids in the physical layer.
 @export_range(0.0, 60.0, 1.0) var physical_object_gap := 8.0
+## Physical rocks are omitted from this arrival/landmark safety pocket.
+@export var exclusion_center := Vector2.ZERO
+@export_range(0.0, 5000.0, 25.0) var exclusion_radius := 0.0
+var exclusion_zones: Array[Dictionary] = []
 
 var far_objects: Array[Dictionary] = []
 var middle_objects: Array[Dictionary] = []
@@ -106,6 +110,8 @@ func generate_asteroid_belt() -> void:
 				random.randf_range(-34.0, 34.0)
 			)
 			radius = random.randf_range(18.0, 38.0)
+			if _physical_position_is_excluded(center + offset, radius):
+				continue
 			if not _overlaps_layer_object(
 				physical_objects,
 				offset,
@@ -187,6 +193,18 @@ func _overlaps_layer_object(
 	for object: Dictionary in objects:
 		var required_distance := candidate_radius + float(object["radius"]) + minimum_gap
 		if candidate_offset.distance_squared_to(Vector2(object["offset"])) < required_distance * required_distance:
+			return true
+	return false
+
+
+func _physical_position_is_excluded(world_position: Vector2, object_radius: float) -> bool:
+	if (
+		exclusion_radius > 0.0
+		and world_position.distance_to(exclusion_center) < exclusion_radius + object_radius
+	):
+		return true
+	for zone: Dictionary in exclusion_zones:
+		if world_position.distance_to(Vector2(zone.get("center", Vector2.ZERO))) < float(zone.get("radius", 0.0)) + object_radius:
 			return true
 	return false
 

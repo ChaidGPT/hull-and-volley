@@ -2,6 +2,7 @@ class_name GridInventoryCatalog
 extends RefCounted
 
 const SHIP_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
+const ROOM_STAFFING_RULES := preload("res://scripts/room_staffing_rules.gd")
 
 
 static func describe(layout: Resource, inventory_key: String) -> Dictionary:
@@ -12,7 +13,17 @@ static func describe(layout: Resource, inventory_key: String) -> Dictionary:
 	var piece_footprint := footprint(room_type, template, recipe)
 	var power_delta := SHIP_ANALYZER.room_power_delta(room_type, 1, template)
 	if recipe != null:
-		power_delta = Vector2(0.0, float(recipe.get("power_draw")))
+		var recipe_requirement := int(recipe.get("required_reactor_fields"))
+		if recipe_requirement <= 0 and float(recipe.get("power_draw")) > 0.0:
+			recipe_requirement = maxi(ceili(float(recipe.get("power_draw"))), 1)
+		power_delta = Vector2(0.0, float(recipe_requirement))
+	var minimum_crew := int(template.get("minimum_crew")) if template != null else 0
+	var optimal_crew := int(template.get("optimal_crew")) if template != null else 0
+	if recipe != null:
+		minimum_crew = maxi(minimum_crew, int(recipe.get("minimum_crew")))
+		optimal_crew = maxi(optimal_crew, int(recipe.get("optimal_crew")))
+	if template != null:
+		optimal_crew = ROOM_STAFFING_RULES.effective_requirements(template, minimum_crew, optimal_crew).y
 	return {
 		"inventory_key": inventory_key,
 		"room_type": room_type,
@@ -23,6 +34,7 @@ static func describe(layout: Resource, inventory_key: String) -> Dictionary:
 		"footprint": piece_footprint,
 		"power_capacity": roundi(power_delta.x),
 		"power_draw": roundi(power_delta.y),
+		"crew_required": maxi(optimal_crew, minimum_crew),
 	}
 
 
@@ -60,7 +72,7 @@ static func category_color(room_type: String) -> Color:
 
 
 static func footprint(room_type: String, template: Resource, recipe: Resource) -> Vector2i:
-	if room_type == "SHIELDS":
+	if room_type in ["PROPULSION", "SHIELDS"]:
 		return Vector2i.ONE
 	if room_type == "MEDICAL":
 		return Vector2i(1, 2)

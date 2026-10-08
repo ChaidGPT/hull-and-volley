@@ -1,13 +1,6 @@
 class_name ShipBuilderAnalyzer
 extends RefCounted
 
-const POWER_PER_GENERATOR_CELL := 4.0
-const POWER_PER_PROPULSION_CELL := 1.0
-const POWER_PER_SHIELD_CELL := 2.0
-const POWER_PER_HANGAR_CELL := 1.0
-const POWER_PER_SERVICE_CELL := 1.0
-const POWER_PER_BASIC_WEAPON := 1.0
-const POWER_PER_HEAVY_WEAPON := 2.0
 const CREW_CAPACITY_PER_QUARTERS_CELL := 8
 ## The construction lattice is 2x2 cells per regular room. A basic reactor
 ## reaches two regular room widths from any cell it occupies.
@@ -25,6 +18,10 @@ static func analyze(layout: Resource, preview_size: Vector2i = Vector2i.ZERO) ->
 		"optimal_crew": 0,
 		"energy_capacity": 0.0,
 		"energy_demand": 0.0,
+		"reactor_field_count": 0,
+		"powered_room_count": 0,
+		"underpowered_room_count": 0,
+		"missing_reactor_links": 0.0,
 		"shield_capacity": 0.0,
 		"shield_regen": 0.0,
 		"thrust_rating": 0.0,
@@ -107,15 +104,24 @@ static func analyze(layout: Resource, preview_size: Vector2i = Vector2i.ZERO) ->
 	stats["power_networks"] = local_power["networks"]
 	stats["room_power_factors"] = local_power["room_factors"]
 	stats["energy_uncovered_demand"] = local_power["uncovered_demand"]
+	stats["reactor_field_count"] = local_power["reactor_field_count"]
+	stats["powered_room_count"] = local_power["powered_room_count"]
+	stats["underpowered_room_count"] = local_power["underpowered_room_count"]
+	stats["missing_reactor_links"] = local_power["missing_field_links"]
 	return stats
 
 
-## Resolves physical reactor fields into independent local power networks.
-## Overlapping fields pool their output. Consumers outside every field remain
-## offline even if another part of the ship has unused generation.
+## Resolves reactor coverage. A reactor field has unlimited capacity inside its
+## radius; consumers care only about how many active fields overlap them.
 static func power_network_report(layout: Resource, generator_factors: Dictionary = {}) -> Dictionary:
 	if layout == null:
-		return {"networks": [], "room_factors": {}, "uncovered_demand": 0.0}
+		return {
+			"networks": [], "room_factors": {}, "room_coverage": {},
+			"room_requirements": {}, "uncovered_demand": 0.0,
+			"missing_field_links": 0.0, "reactor_field_count": 0,
+			"active_reactor_fields": 0.0, "powered_room_count": 0,
+			"underpowered_room_count": 0,
+		}
 	return _power_network_report_for_rooms(layout, layout.get("rooms"), generator_factors)
 
 
@@ -142,33 +148,25 @@ static func evaluate_power_placement(
 	preview_rooms.append(candidate)
 	var report := _power_network_report_for_rooms(layout, preview_rooms, {})
 	var factor := float(report["room_factors"].get(&"__power_preview__", 1.0 if _is_generator_type(room_type) else 0.0))
-	var delta := room_power_delta(room_type, _room_cell_count(candidate), candidate)
-	var required := delta.y
-	var network_capacity := 0.0
-	var network_demand := 0.0
-	for network: Dictionary in report["networks"]:
-		if (network["room_ids"] as Array).has(&"__power_preview__"):
-			network_capacity = float(network["capacity"])
-			network_demand = float(network["demand"])
-			break
-	var covered := _is_generator_type(room_type) or factor > 0.0 or required <= 0.0
-	var valid := _is_generator_type(room_type) or required <= 0.0 or (covered and network_demand <= network_capacity + 0.001)
-	var missing := maxf(network_demand - network_capacity, required if not covered else 0.0)
+	var required := float(report["room_requirements"].get(&"__power_preview__", room_power_requirement(room_type, candidate)))
+	var coverage := float(report["room_coverage"].get(&"__power_preview__", 0.0))
+	var covered := _is_generator_type(room_type) or required <= 0.0 or coverage > 0.001
+	var valid := _is_generator_type(room_type) or required <= 0.0 or coverage + 0.001 >= required
+	var missing := maxf(required - coverage, 0.0)
 	return {
 		"valid": valid,
 		"covered": covered,
 		"factor": factor,
-		"capacity": network_capacity,
-		"demand": network_demand,
+		"coverage": coverage,
+		"coverage_count": floori(coverage + 0.001),
+		"required_fields": roundi(required),
 		"required": required,
-		"available": maxf(network_capacity - (network_demand - required), 0.0),
+		"available": coverage,
 		"missing": ceili(missing),
 		"message": (
 			"POWER FIELD ABSENT • PLACE WITHIN A REACTOR RADIUS"
-			if not covered
-			else "LOCAL GRID SATURATED • REQUIRES %d • %d AVAILABLE • ADD OR MOVE A REACTOR" % [
-				roundi(required),
-				floori(maxf(network_capacity - (network_demand - required), 0.0)),
+			if not covered else "REACTOR COVERAGE LOW • REQUIRES %d FIELDS • %.1f ACTIVE • ADD OR MOVE A REACTOR" % [
+				roundi(required), coverage,
 			]
 		),
 	}
@@ -178,6 +176,8 @@ static func _power_network_report_for_rooms(layout: Resource, room_list: Array, 
 	var generators: Array[Dictionary] = []
 	var consumers: Array[Dictionary] = []
 	var room_factors: Dictionary = {}
+	var room_coverage: Dictionary = {}
+	var room_requirements: Dictionary = {}
 	for room_value: Variant in room_list:
 		var room := room_value as Resource
 		if room == null:
@@ -186,21 +186,35 @@ static func _power_network_report_for_rooms(layout: Resource, room_list: Array, 
 		var room_type := String(room.get("type_name"))
 		var cells := _room_cells(room)
 		if _is_generator_type(room_type):
-			var generation := room_power_delta(room_type, _room_cell_count(room), room).x
-			generation *= clampf(float(generator_factors.get(room_id, 1.0)), 0.0, 1.3)
-			if generation <= 0.001:
-				room_factors[room_id] = 1.0
-				continue
-			generators.append({"room": room, "id": room_id, "cells": cells, "capacity": generation})
+			var strength := clampf(float(generator_factors.get(room_id, 1.0)), 0.0, 1.0)
+			var rects: Array = room.get("grid_rects")
+			var room_field_count := 0
+			if rects.is_empty():
+				generators.append({"room": room, "id": room_id, "cells": cells, "strength": strength})
+				room_field_count = 1
+			else:
+				for rect_value: Variant in rects:
+					var rect := rect_value as Rect2i
+					var unit_cells: Array[Vector2i] = []
+					for y: int in range(rect.position.y, rect.end.y):
+						for x: int in range(rect.position.x, rect.end.x):
+							unit_cells.append(Vector2i(x, y))
+					generators.append({"room": room, "id": room_id, "cells": unit_cells, "strength": strength})
+					room_field_count += 1
 			room_factors[room_id] = 1.0
+			room_coverage[room_id] = float(room_field_count)
+			room_requirements[room_id] = 0
 			continue
-		var demand := room_power_delta(room_type, _room_cell_count(room), room).y
-		if demand > 0.0:
-			consumers.append({"room": room, "id": room_id, "cells": cells, "demand": demand})
+		var required := room_power_requirement(room_type, room)
+		room_requirements[room_id] = required
+		if required > 0:
+			consumers.append({"room": room, "id": room_id, "cells": cells, "required": required})
 		else:
 			room_factors[room_id] = 1.0
+			room_coverage[room_id] = 0.0
 
-	# Union overlapping reactor fields into pooled networks.
+	# Group overlapping fields for presentation. Power is never pooled or spent;
+	# every reactor field independently contributes one level of local coverage.
 	var parents: Array[int] = []
 	for index: int in range(generators.size()):
 		parents.append(index)
@@ -214,40 +228,73 @@ static func _power_network_report_for_rooms(layout: Resource, room_list: Array, 
 		if not networks_by_root.has(root):
 			networks_by_root[root] = {
 				"generator_indices": [], "generator_ids": [], "room_ids": [],
-				"capacity": 0.0, "demand": 0.0, "factor": 1.0,
+				"field_count": 0, "active_field_strength": 0.0,
+				"required_links": 0.0, "provided_links": 0.0,
+				"missing_links": 0.0, "factor": 1.0,
 			}
 		var network: Dictionary = networks_by_root[root]
 		network["generator_indices"].append(generator_index)
-		network["generator_ids"].append(generators[generator_index]["id"])
-		network["room_ids"].append(generators[generator_index]["id"])
-		network["capacity"] = float(network["capacity"]) + float(generators[generator_index]["capacity"])
+		var generator_id: StringName = generators[generator_index]["id"]
+		if not network["generator_ids"].has(generator_id):
+			network["generator_ids"].append(generator_id)
+			network["room_ids"].append(generator_id)
+		network["field_count"] = int(network["field_count"]) + 1
+		network["active_field_strength"] = float(network["active_field_strength"]) + float(generators[generator_index]["strength"])
 
-	var uncovered_demand := 0.0
+	var missing_field_links := 0.0
+	var powered_room_count := 0
+	var underpowered_room_count := 0
 	for consumer: Dictionary in consumers:
 		var matching_root := -1
+		var coverage := 0.0
 		for generator_index: int in range(generators.size()):
 			if _cell_set_distance(consumer["cells"], generators[generator_index]["cells"]) <= REACTOR_FIELD_RADIUS_LATTICE:
 				matching_root = _power_parent(parents, generator_index)
-				break
+				coverage += float(generators[generator_index]["strength"])
+		var required := float(consumer["required"])
+		var factor := clampf(coverage / required, 0.0, 1.0)
+		room_coverage[consumer["id"]] = coverage
+		room_factors[consumer["id"]] = factor
+		var missing := maxf(required - coverage, 0.0)
+		missing_field_links += missing
+		if missing <= 0.001:
+			powered_room_count += 1
+		else:
+			underpowered_room_count += 1
 		if matching_root < 0:
-			room_factors[consumer["id"]] = 0.0
-			uncovered_demand += float(consumer["demand"])
 			continue
 		var network: Dictionary = networks_by_root[matching_root]
-		network["room_ids"].append(consumer["id"])
-		network["demand"] = float(network["demand"]) + float(consumer["demand"])
+		if not network["room_ids"].has(consumer["id"]):
+			network["room_ids"].append(consumer["id"])
+		network["required_links"] = float(network["required_links"]) + required
+		network["provided_links"] = float(network["provided_links"]) + minf(coverage, required)
+		network["missing_links"] = float(network["missing_links"]) + missing
 
 	var networks: Array[Dictionary] = []
 	for network_value: Variant in networks_by_root.values():
 		var network := network_value as Dictionary
-		var demand := float(network["demand"])
-		var factor := 1.0 if demand <= 0.0 else clampf(float(network["capacity"]) / demand, 0.0, 1.0)
-		network["factor"] = factor
-		for room_id: StringName in network["room_ids"]:
-			if not network["generator_ids"].has(room_id):
-				room_factors[room_id] = factor
+		var required_links := float(network["required_links"])
+		network["factor"] = 1.0 if required_links <= 0.0 else clampf(float(network["provided_links"]) / required_links, 0.0, 1.0)
+		# Compatibility aliases for older presentation code. These describe field
+		# links, never a consumable output pool.
+		network["capacity"] = float(network["active_field_strength"])
+		network["demand"] = required_links
 		networks.append(network)
-	return {"networks": networks, "room_factors": room_factors, "uncovered_demand": uncovered_demand}
+	var active_reactor_fields := 0.0
+	for generator: Dictionary in generators:
+		active_reactor_fields += float(generator["strength"])
+	return {
+		"networks": networks,
+		"room_factors": room_factors,
+		"room_coverage": room_coverage,
+		"room_requirements": room_requirements,
+		"uncovered_demand": missing_field_links,
+		"missing_field_links": missing_field_links,
+		"reactor_field_count": generators.size(),
+		"active_reactor_fields": active_reactor_fields,
+		"powered_room_count": powered_room_count,
+		"underpowered_room_count": underpowered_room_count,
+	}
 
 
 static func _is_generator_type(room_type: String) -> bool:
@@ -315,35 +362,42 @@ static func _accumulate_weapon_stats(stats: Dictionary, room: Resource, cell_cou
 	_add_count(stats["weapon_families"], String(weapon.get("weapon_family")), mount_count)
 
 
-static func _weapon_energy_estimate(weapon: Resource) -> float:
-	var mount_cells := maxi(int(weapon.get("required_mount_cells")), 1)
-	var damage := float(weapon.get("damage"))
-	return POWER_PER_HEAVY_WEAPON if mount_cells > 1 or damage >= 30.0 else POWER_PER_BASIC_WEAPON
-
-
-static func room_power_delta(room_type: String, cell_count: int, room: Resource = null) -> Vector2:
-	var cells := maxi(cell_count, 1)
-	var recipe: Resource = room.get("module_recipe") if room != null else null
-	if recipe != null:
-		return Vector2(0.0, float(recipe.get("power_draw")) * float(_installed_piece_count(room)))
+## Returns the number of overlapping reactor fields a room needs. Authored
+## requirements win; legacy module power draw is interpreted as field count.
+static func room_power_requirement(room_type: String, room: Resource = null) -> int:
+	if _is_generator_type(room_type):
+		return 0
 	if room != null:
-		cells = maxi(cells, _installed_piece_count(room))
+		var authored := int(room.get("required_reactor_fields"))
+		if authored > 0:
+			return authored
+		var recipe: Resource = room.get("module_recipe")
+		if recipe != null:
+			var recipe_requirement := int(recipe.get("required_reactor_fields"))
+			if recipe_requirement > 0:
+				return recipe_requirement
+			var legacy_draw := float(recipe.get("power_draw"))
+			if legacy_draw > 0.0:
+				return maxi(ceili(legacy_draw), 1)
 	match room_type:
-		"REACTOR", "POWER", "ENGINE":
-			return Vector2(float(cells) * POWER_PER_GENERATOR_CELL, 0.0)
 		"SHIELDS":
-			return Vector2(0.0, float(cells) * POWER_PER_SHIELD_CELL)
-		"PROPULSION":
-			return Vector2(0.0, float(cells) * POWER_PER_PROPULSION_CELL)
-		"HANGAR":
-			return Vector2(0.0, float(cells) * POWER_PER_HANGAR_CELL)
-		"MEDICAL", "SECURITY", "WORKSHOP":
-			return Vector2(0.0, float(cells) * POWER_PER_SERVICE_CELL)
+			return 1
+		"PROPULSION", "HANGAR", "MEDICAL", "SECURITY", "WORKSHOP":
+			return 1
 		"WEAPONS":
-			var weapon: Resource = room.get("weapon_definition") if room != null else null
-			var draw := _weapon_energy_estimate(weapon) if weapon != null else POWER_PER_BASIC_WEAPON
-			return Vector2(0.0, draw)
-	return Vector2.ZERO
+			# A bare weapon grid is ordinary equipment. Advanced mounts opt into
+			# multiple fields through their room/recipe requirement above.
+			return 1
+	return 0
+
+
+## Legacy inventory/UI tuple. X is reactor field sources and Y is required
+## overlapping fields; neither value represents consumable power capacity.
+static func room_power_delta(room_type: String, cell_count: int, room: Resource = null) -> Vector2:
+	if _is_generator_type(room_type):
+		var source_count := _installed_piece_count(room) if room != null else maxi(cell_count, 1)
+		return Vector2(float(source_count), 0.0)
+	return Vector2(0.0, float(room_power_requirement(room_type, room)))
 
 
 static func _hangar_capacity(room: Resource, fallback_cells: int) -> int:

@@ -435,6 +435,7 @@ text = "SELECT BODY TO INSPECT"
 clip_text = true
 
 [node name="CombatContactActions" type="VBoxContainer" parent="TargetingPanel/Margin/Content"]
+visible = false
 unique_name_in_owner = true
 layout_mode = 2
 theme_override_constants/separation = 5
@@ -707,23 +708,6 @@ unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 28)
 layout_mode = 2
 text = "SPAWN PLAYER-SHIP COPY"
-
-[node name="SampleShipLabel" type="Label" parent="DevMenu/Margin/Controls"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.29, 0.57, 0.64, 1)
-theme_override_font_sizes/font_size = 10
-text = "AUTHORED SAMPLE SHIP"
-
-[node name="SampleShipSelector" type="OptionButton" parent="DevMenu/Margin/Controls"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 30)
-layout_mode = 2
-
-[node name="SpawnSampleShipButton" type="Button" parent="DevMenu/Margin/Controls"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 28)
-layout_mode = 2
-text = "SPAWN SELECTED SAMPLE"
 
 [node name="ClearEnemiesButton" type="Button" parent="DevMenu/Margin/Controls" unique_id=1266750818]
 unique_name_in_owner = true

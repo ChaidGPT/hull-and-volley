@@ -4,6 +4,7 @@ extends Control
 const POWER_ICON := preload("res://assets/sprites/ui/icons/power.png")
 const POWER_DARK_ICON := preload("res://assets/sprites/ui/icons/power_dark.png")
 const POWER_ALERT_ICON := preload("res://assets/sprites/ui/icons/power_alert.png")
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
 const CREW_ICON := preload("res://assets/sprites/ui/icons/crew.png")
 const CREW_DARK_ICON := preload("res://assets/sprites/ui/icons/crew_dark.png")
 const CREW_ALERT_ICON := preload("res://assets/sprites/ui/icons/crew_alert.png")
@@ -16,12 +17,16 @@ enum MeterKind {
 @export var meter_kind := MeterKind.POWER
 @export var power_cell_units := 1.0
 @export_range(6, 24, 1) var maximum_power_cells := 20
+@export var compact_hud := false
 
 var power_capacity := 0.0
 var power_online_capacity := 0.0
 var power_used := 0.0
 var preview_capacity_delta := 0.0
 var preview_demand_delta := 0.0
+var power_coverage_mode := false
+var power_covered_rooms := 0
+var power_underpowered_rooms := 0
 
 var crew_working := 0
 var crew_available := 0
@@ -56,7 +61,7 @@ const PREVIEW_COLOR := Color(1.0, 0.78, 0.24, 0.98)
 
 
 func _ready() -> void:
-	custom_minimum_size.y = maxf(custom_minimum_size.y, 54.0)
+	custom_minimum_size.y = maxf(custom_minimum_size.y, 38.0 if compact_hud else 54.0)
 	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 	mouse_entered.connect(_on_pointer_entered)
 	mouse_exited.connect(_on_pointer_exited)
@@ -96,6 +101,7 @@ func _on_pointer_exited() -> void:
 
 
 func set_power_state(capacity: float, used: float, online_capacity: float = -1.0, capacity_preview: float = 0.0, demand_preview: float = 0.0) -> void:
+	power_coverage_mode = false
 	power_capacity = maxf(capacity, 0.0)
 	power_used = maxf(used, 0.0)
 	power_online_capacity = power_capacity if online_capacity < 0.0 else clampf(online_capacity, 0.0, power_capacity)
@@ -113,7 +119,40 @@ func set_power_state(capacity: float, used: float, online_capacity: float = -1.0
 	if not is_zero_approx(preview_capacity_delta):
 		lines.append("INSTALL • %+.0f POWER" % preview_capacity_delta)
 	if not is_zero_approx(preview_demand_delta):
-		lines.append("INSTALL • %.0f POWER NEEDED" % preview_demand_delta)
+		lines.append("INSTALL • %s" % POWER_REQUIREMENT_DISPLAY.plain_text(maxi(roundi(preview_demand_delta), 1), 0.0))
+	summary_tooltip = "\n".join(lines)
+	tooltip_text = summary_tooltip
+	queue_redraw()
+
+
+func set_power_coverage_state(
+	field_count: int,
+	covered_rooms: int,
+	underpowered_rooms: int,
+	active_fields: float = -1.0,
+	field_preview: int = 0,
+	requirement_preview: int = 0
+) -> void:
+	power_coverage_mode = true
+	power_capacity = maxf(float(field_count), 0.0)
+	power_online_capacity = power_capacity if active_fields < 0.0 else clampf(active_fields, 0.0, power_capacity)
+	power_covered_rooms = maxi(covered_rooms, 0)
+	power_underpowered_rooms = maxi(underpowered_rooms, 0)
+	preview_capacity_delta = float(field_preview)
+	preview_demand_delta = float(requirement_preview)
+	var lines := PackedStringArray([
+		"%d REACTOR FIELD%s • %d ROOM%s FULLY POWERED" % [
+			field_count, "" if field_count == 1 else "S",
+			power_covered_rooms, "" if power_covered_rooms == 1 else "S",
+		],
+		"POWER IS UNLIMITED INSIDE EACH FIELD",
+	])
+	if power_underpowered_rooms > 0:
+		lines.append("⚠ %d ROOM%s NEED MORE FIELD COVERAGE" % [power_underpowered_rooms, "" if power_underpowered_rooms == 1 else "S"])
+	if field_preview != 0:
+		lines.append("INSTALL • %+.0f REACTOR FIELD" % float(field_preview))
+	if requirement_preview > 0:
+		lines.append("INSTALL • %s" % POWER_REQUIREMENT_DISPLAY.plain_text(requirement_preview, 0.0))
 	summary_tooltip = "\n".join(lines)
 	tooltip_text = summary_tooltip
 	queue_redraw()
@@ -130,7 +169,10 @@ func set_crew_state(working: int, available: int, injured: int, missing: int = 0
 	crew_labor = maxi(labor, 0)
 	crew_context = context
 	var total := crew_working + crew_available + crew_injured + crew_security + crew_labor
-	var lines: PackedStringArray = []
+	var lines := PackedStringArray([
+		"CURRENT CREW • %d" % total,
+		"MAX CREW • %d" % maxi(crew_capacity, 0),
+	])
 	var duty_parts: PackedStringArray = []
 	if context == "blueprint":
 		if crew_working > 0:
@@ -147,7 +189,7 @@ func set_crew_state(working: int, available: int, injured: int, missing: int = 0
 		if crew_available > 0:
 			duty_parts.append("%d READY" % crew_available)
 	if not duty_parts.is_empty():
-		lines.append("".join(duty_parts))
+		lines.append(" • ".join(duty_parts))
 	if crew_capacity >= 0:
 		var open_berths := maxi(crew_capacity - total, 0)
 		if open_berths > 0:
@@ -159,9 +201,7 @@ func set_crew_state(working: int, available: int, injured: int, missing: int = 0
 	if crew_missing > 0:
 		lines.append("⚠ %d STATIONS UNFILLED" % crew_missing)
 	if crew_preview > 0:
-		lines.append("INSTALL • %d CREW COMMITTED" % crew_preview)
-	if lines.is_empty():
-		lines.append("NO CREW ABOARD")
+		lines.append("INSTALL • %d CREW STATION%s ADDED" % [crew_preview, "" if crew_preview == 1 else "S"])
 	summary_tooltip = "\n".join(lines)
 	tooltip_text = summary_tooltip
 	queue_redraw()
@@ -223,6 +263,9 @@ func _draw_interaction_brackets(rect: Rect2, color: Color) -> void:
 
 
 func _draw_power_meter() -> void:
+	if power_coverage_mode:
+		_draw_power_coverage_meter()
+		return
 	_draw_power_icon(Vector2(13.0, 11.0))
 	draw_string(ThemeDB.fallback_font, Vector2(25.0, 13.0), "POWER FIELD", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.5, 0.88, 0.84, 0.9))
 	_add_hover_region(Rect2(Vector2(5.0, 2.0), Vector2(88.0, 16.0)), summary_tooltip)
@@ -291,81 +334,126 @@ func _draw_power_meter() -> void:
 		draw_line(Vector2(7.0, size.y - 4.0), Vector2(size.x - 7.0, size.y - 4.0), DANGER_COLOR, 2.0)
 
 
+func _draw_power_coverage_meter() -> void:
+	if compact_hud:
+		_draw_compact_power_coverage_meter()
+		return
+	_draw_power_icon(Vector2(13.0, 11.0))
+	draw_string(ThemeDB.fallback_font, Vector2(25.0, 13.0), "REACTOR NETWORK", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.5, 0.88, 0.84, 0.9))
+	_add_hover_region(Rect2(Vector2(5.0, 2.0), Vector2(112.0, 16.0)), summary_tooltip)
+	var preview_requirement := maxi(roundi(preview_demand_delta), 0)
+	if preview_requirement > 0:
+		var preview_width := float(preview_requirement) * 12.0 + float(preview_requirement - 1)
+		POWER_REQUIREMENT_DISPLAY.draw_strip(
+			self,
+			Vector2(size.x - 7.0 - preview_width * 0.5, 10.0),
+			preview_requirement,
+			0.0,
+			12.0,
+			1.0
+		)
+	var field_count := maxi(roundi(power_capacity), 0)
+	var active_count := clampi(floori(power_online_capacity + 0.001), 0, field_count)
+	var field_color := POWER_USED_COLOR if active_count >= field_count and field_count > 0 else (
+		DANGER_COLOR if active_count <= 0 else PREVIEW_COLOR
+	)
+	var field_text := "NO REACTOR FIELD" if field_count <= 0 else "%02d / %02d FIELDS ONLINE" % [active_count, field_count]
+	draw_string(ThemeDB.fallback_font, Vector2(9.0, 34.0), field_text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 13, field_color)
+	var room_text := "%02d ROOMS POWERED" % power_covered_rooms
+	if power_underpowered_rooms > 0:
+		room_text += "  •  %02d NEED COVERAGE" % power_underpowered_rooms
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(9.0, 48.0),
+		room_text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		maxf(size.x - 18.0, 20.0),
+		9,
+		DANGER_COLOR if power_underpowered_rooms > 0 else Color(0.44, 0.76, 0.72, 0.92)
+	)
+	if power_underpowered_rooms > 0:
+		draw_line(Vector2(7.0, size.y - 4.0), Vector2(size.x - 7.0, size.y - 4.0), DANGER_COLOR, 2.0)
+
+
+func _draw_compact_power_coverage_meter() -> void:
+	_draw_power_icon(Vector2(11.0, 10.0))
+	draw_string(ThemeDB.fallback_font, Vector2(22.0, 12.0), "REACTORS", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Color(0.5, 0.88, 0.84, 0.9))
+	_add_hover_region(Rect2(Vector2.ZERO, size), summary_tooltip)
+	var field_count := maxi(roundi(power_capacity), 0)
+	var active_count := clampi(floori(power_online_capacity + 0.001), 0, field_count)
+	var healthy := field_count > 0 and active_count >= field_count and power_underpowered_rooms <= 0
+	var status_color := POWER_USED_COLOR if healthy else (PREVIEW_COLOR if active_count > 0 else DANGER_COLOR)
+	var field_text := "%02d/%02d" % [active_count, field_count]
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(size.x - 48.0, 13.0),
+		field_text,
+		HORIZONTAL_ALIGNMENT_RIGHT,
+		40.0,
+		11,
+		status_color
+	)
+	var room_text := "%02d ROOMS" % power_covered_rooms
+	if power_underpowered_rooms > 0:
+		room_text += "  •  %02d LOW" % power_underpowered_rooms
+	else:
+		room_text += "  •  COVERED"
+	draw_string(
+		ThemeDB.fallback_font,
+		Vector2(8.0, 30.0),
+		room_text,
+		HORIZONTAL_ALIGNMENT_LEFT,
+		maxf(size.x - 16.0, 20.0),
+		9,
+		DANGER_COLOR if power_underpowered_rooms > 0 else Color(0.44, 0.84, 0.78, 0.94)
+	)
+	if power_underpowered_rooms > 0:
+		draw_line(Vector2(7.0, size.y - 3.0), Vector2(size.x - 7.0, size.y - 3.0), DANGER_COLOR, 2.0)
+
+
 func _draw_crew_meter() -> void:
+	if compact_hud:
+		_draw_compact_crew_meter()
+		return
 	var header_icon_point := Vector2(13.0, 10.0)
 	_draw_crew_icon(header_icon_point, Color(0.48, 0.9, 0.84, 0.9), false, pointer_inside and pointer_local.distance_to(header_icon_point) < 8.0)
-	draw_string(ThemeDB.fallback_font, Vector2(25.0, 13.0), "CREW ROSTER", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.5, 0.88, 0.84, 0.9))
-	_add_hover_region(Rect2(Vector2(5.0, 1.0), Vector2(88.0, 17.0)), summary_tooltip)
-	var states: Array[Dictionary] = []
-	_append_crew_states(states, crew_working, POWER_USED_COLOR, false, "working")
-	_append_crew_states(states, crew_security + crew_labor, RESERVE_COLOR, false, "reserve")
-	_append_crew_states(states, crew_available, AVAILABLE_COLOR, false, "available")
-	_append_crew_states(states, crew_injured, INJURED_COLOR, false, "injured")
+	draw_string(ThemeDB.fallback_font, Vector2(25.0, 13.0), "PERSONNEL REGISTER", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.5, 0.88, 0.84, 0.9))
+	_add_hover_region(Rect2(Vector2(5.0, 1.0), Vector2(size.x - 10.0, size.y - 2.0)), summary_tooltip)
 	var current_crew := crew_working + crew_available + crew_injured + crew_security + crew_labor
-	if crew_capacity >= 0:
-		_append_crew_states(states, maxi(crew_capacity - current_crew, 0), Color(0.18, 0.42, 0.38, 0.8), true, "berth")
+	var maximum_crew := maxi(crew_capacity, 0)
+	var current_color := DANGER_COLOR if current_crew > maximum_crew else (AVAILABLE_COLOR if current_crew >= maximum_crew and maximum_crew > 0 else POWER_USED_COLOR)
+	draw_string(ThemeDB.fallback_font, Vector2(9.0, 31.0), "CURRENT CREW", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.48, 0.76, 0.72, 0.9))
+	draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.55, 31.0), "MAX CREW", HORIZONTAL_ALIGNMENT_LEFT, -1, 9, Color(0.48, 0.76, 0.72, 0.9))
+	draw_string(ThemeDB.fallback_font, Vector2(9.0, 47.0), "%02d" % current_crew, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, current_color)
+	draw_string(ThemeDB.fallback_font, Vector2(size.x * 0.55, 47.0), "%02d" % maximum_crew, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.94, 0.72, 0.3, 1.0))
+	var divider_x := size.x * 0.49
+	draw_line(Vector2(divider_x, 23.0), Vector2(divider_x, 48.0), Color(FRAME_COLOR, 0.62), 1.0)
 	if reinforcement_active:
-		var forming_remaining := reinforcement_sources
-		for state: Dictionary in states:
-			if forming_remaining > 0 and String(state.get("kind", "")) == "berth":
-				state["kind"] = "forming"
-				state["color"] = AVAILABLE_COLOR.lerp(PREVIEW_COLOR, 0.25)
-				forming_remaining -= 1
-	_append_crew_states(states, crew_preview, PREVIEW_COLOR, true, "preview")
-	_append_crew_states(states, crew_missing, DANGER_COLOR, true, "missing")
-	if states.is_empty():
-		states.append({"color": Color(0.15, 0.3, 0.29, 0.75), "outline": true, "kind": "empty"})
-	var icon_spacing := 15.0
-	var icons_per_row := maxi(floori((size.x - 18.0) / icon_spacing), 1)
-	var rows := ceili(float(states.size()) / float(icons_per_row))
-	var start_y := 27.0 if rows <= 1 else 22.0
-	for index: int in range(states.size()):
-		var row := floori(float(index) / float(icons_per_row))
-		var column := index % icons_per_row
-		var row_count := mini(icons_per_row, states.size() - row * icons_per_row)
-		var row_width := float(row_count - 1) * icon_spacing
-		var start_x := size.x * 0.5 - row_width * 0.5
-		var point := Vector2(start_x + float(column) * icon_spacing, start_y + float(row) * 16.0)
-		var state: Dictionary = states[index]
-		var icon_focused := pointer_inside and pointer_local.distance_to(point) < 7.5
-		_draw_crew_icon(point, state["color"], bool(state["outline"]), icon_focused)
-		if String(state.get("kind", "")) == "forming":
-			var progress := clampf(1.0 - reinforcement_remaining / reinforcement_duration, 0.0, 1.0)
-			var pulse := 0.62 + sin(hover_phase * 6.0) * 0.22
-			draw_circle(point + Vector2(0.0, 1.0), 7.2, Color(AVAILABLE_COLOR, 0.08 * pulse))
-			draw_arc(point + Vector2(0.0, 1.0), 7.0, -PI * 0.5, -PI * 0.5 + TAU * progress, 18, Color(AVAILABLE_COLOR, pulse), 1.5)
-		_add_hover_region(Rect2(point - Vector2(6.5, 7.5), Vector2(13.0, 15.0)), _crew_state_tooltip(String(state["kind"])))
+		var progress := clampf(1.0 - reinforcement_remaining / reinforcement_duration, 0.0, 1.0)
+		draw_line(Vector2(8.0, size.y - 4.0), Vector2(8.0 + (size.x - 16.0) * progress, size.y - 4.0), PREVIEW_COLOR, 2.0)
+	elif crew_missing > 0 or current_crew > maximum_crew:
+		draw_line(Vector2(8.0, size.y - 4.0), Vector2(size.x - 8.0, size.y - 4.0), DANGER_COLOR, 2.0)
 
 
-func _append_crew_states(states: Array[Dictionary], count: int, color: Color, outline: bool, kind: String) -> void:
-	for _index: int in range(count):
-		states.append({"color": color, "outline": outline, "kind": kind})
-
-
-func _crew_state_tooltip(kind: String) -> String:
-	match kind:
-		"working":
-			return (
-				"CREW SIGNAL • REQUIRED STAFF\nTHIS BERTH IS COMMITTED BY THE CURRENT DESIGN"
-				if crew_context == "blueprint"
-				else "CREW SIGNAL • ON DUTY\nCURRENTLY OPERATING A SHIP SYSTEM"
-			)
-		"reserve":
-			return "CREW SIGNAL • RESERVE\nAVAILABLE FOR SECURITY, LABOR, OR DAMAGE CONTROL"
-		"available":
-			return "CREW SIGNAL • AVAILABLE\nHEALTHY CREW MEMBER WITH NO REQUIRED STATION"
-		"injured":
-			return "CREW SIGNAL • INJURED\nUNAVAILABLE UNTIL TREATED BY A MEDICAL SYSTEM"
-		"berth":
-			return "CREW BERTH • OPEN\nCREW QUARTERS WILL BEGIN A REINFORCEMENT CYCLE WHEN NEEDED"
-		"forming":
-			return "%s • %d CREW FORMING\n%02d SEC REMAINING • PARALLEL BERTH CYCLE" % [reinforcement_mode, reinforcement_sources, ceili(reinforcement_remaining)]
-		"preview":
-			return "CREW SIGNAL • INSTALL PREVIEW\nPROPOSED GRID WILL COMMIT THIS CREW MEMBER"
-		"missing":
-			return "CREW SIGNAL • STATION UNFILLED\nSHIP DESIGN REQUIRES MORE HEALTHY CREW"
-		_:
-			return "CREW ROSTER • NO CREW ABOARD"
+func _draw_compact_crew_meter() -> void:
+	var header_icon_point := Vector2(11.0, 10.0)
+	_draw_crew_icon(header_icon_point, Color(0.48, 0.9, 0.84, 0.9), false, pointer_inside and pointer_local.distance_to(header_icon_point) < 8.0)
+	draw_string(ThemeDB.fallback_font, Vector2(22.0, 12.0), "PERSONNEL", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Color(0.5, 0.88, 0.84, 0.9))
+	_add_hover_region(Rect2(Vector2.ZERO, size), summary_tooltip)
+	var current_crew := crew_working + crew_available + crew_injured + crew_security + crew_labor
+	var maximum_crew := maxi(crew_capacity, 0)
+	var current_color := DANGER_COLOR if current_crew > maximum_crew else (AVAILABLE_COLOR if current_crew >= maximum_crew and maximum_crew > 0 else POWER_USED_COLOR)
+	var current_x := 8.0
+	draw_string(ThemeDB.fallback_font, Vector2(current_x, 30.0), "CREW", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Color(0.44, 0.72, 0.69, 0.9))
+	draw_string(ThemeDB.fallback_font, Vector2(current_x + 35.0, 31.0), "%02d" % current_crew, HORIZONTAL_ALIGNMENT_LEFT, -1.0, 12, current_color)
+	var berth_label_x := size.x - 79.0
+	draw_string(ThemeDB.fallback_font, Vector2(berth_label_x, 30.0), "BERTHS", HORIZONTAL_ALIGNMENT_LEFT, -1.0, 8, Color(0.44, 0.72, 0.69, 0.9))
+	draw_string(ThemeDB.fallback_font, Vector2(size.x - 26.0, 31.0), "%02d" % maximum_crew, HORIZONTAL_ALIGNMENT_RIGHT, 22.0, 12, Color(0.94, 0.72, 0.3, 1.0))
+	if reinforcement_active:
+		var progress := clampf(1.0 - reinforcement_remaining / reinforcement_duration, 0.0, 1.0)
+		draw_line(Vector2(7.0, size.y - 3.0), Vector2(7.0 + (size.x - 14.0) * progress, size.y - 3.0), PREVIEW_COLOR, 2.0)
+	elif crew_missing > 0 or current_crew > maximum_crew:
+		draw_line(Vector2(7.0, size.y - 3.0), Vector2(size.x - 7.0, size.y - 3.0), DANGER_COLOR, 2.0)
 
 
 func _add_hover_region(rect: Rect2, text: String) -> void:

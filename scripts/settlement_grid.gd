@@ -21,13 +21,19 @@ const EDIT_MARGIN_CELLS := 1
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
 const SHIP_RESOURCE_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
 const ROOM_STAFFING_RULES := preload("res://scripts/room_staffing_rules.gd")
+const QUARTER_CONNECTOR_RESOLVER := preload("res://scripts/quarter_connector_resolver.gd")
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const CREW_REQUIREMENT_DISPLAY := preload("res://scripts/crew_requirement_display.gd")
 const TACTICAL_SHIP_VISUAL_SCRIPT := preload("res://scripts/tactical_ship_visual.gd")
 const TACTICAL_CELL_SIZE := 10.0
 const TACTICAL_CANVAS_PADDING := Vector2(10, 22)
 const ForgeInventoryPieceScript := preload("res://scripts/forge_inventory_piece.gd")
 const DOOR_VISUALS := preload("res://scripts/door_visuals.gd")
-const QUARTER_ROOM_BASE := preload("res://assets/sprites/interiors/rooms/quarter/base.png")
 const QUARTER_ROOM_CONNECTOR := preload("res://assets/sprites/interiors/rooms/quarter/connector.png")
+const QUARTER_ROOM_CONNECTOR_STRAIGHT := preload("res://assets/sprites/interiors/rooms/quarter/connector_straight.png")
+const QUARTER_ROOM_CONNECTOR_CORNER := preload("res://assets/sprites/interiors/rooms/quarter/connector_corner.png")
+const QUARTER_THRUSTER_OVERLAY := preload("res://assets/sprites/interiors/rooms/quarter/overlays/thruster.png")
+const QUARTER_DIRECTIONAL_SHIELD_OVERLAY := preload("res://assets/sprites/interiors/rooms/quarter/overlays/directional_shield.png")
 const LIGHT_BALLISTIC_MOUNT := preload("res://assets/sprites/weapons/authored/light_ballistic_mount.png")
 const INVALID_CELL := Vector2i(2147483647, 2147483647)
 const CREW_ANIMATION_RANGES := {
@@ -92,6 +98,9 @@ var selected_room_cell := INVALID_CELL
 var last_editor_click_was_hardware := false
 var hovered_room_id: StringName = &""
 var editor_mode := false
+## Full drydock editors show whether the authored staffing plan fits the ship's
+## berth capacity. Embedded in-flight workbenches continue to show live bodies.
+var planned_staffing_display := false
 ## Embedded workbenches provide their own viewport and must not inherit the
 ## full blueprint canvas as a UI minimum size.
 var editor_viewport_constrained := false
@@ -887,7 +896,7 @@ func _draw() -> void:
 		):
 			if String(room.get("type_name")) in ["WEAPONS", "PROPULSION", "SHIELDS"]:
 				for mount_room: Resource in _module_piece_views(room):
-					if String(room.get("type_name")) == "WEAPONS" and _is_authored_quarter_room(mount_room):
+					if _is_authored_quarter_room(mount_room):
 						continue
 					_draw_module_facing_indicator(mount_room, hull_cells)
 			else:
@@ -908,6 +917,7 @@ func _draw() -> void:
 			draw_line(Vector2(disabled_rect.end.x - 5.0, disabled_rect.position.y + 5.0), Vector2(disabled_rect.position.x + 5.0, disabled_rect.end.y - 5.0), Color(1.0, 0.3, 0.08, warning_pulse), 2.0, true)
 	if show_all_indicators or (editor_mode and free_blueprint_placement):
 		_draw_power_network_overlay(false, true)
+		_draw_crew_requirement_overlay()
 	if editor_mode and not installed_drag_data.is_empty():
 		_draw_installed_piece_socket()
 	if editor_mode and ship_layout != null and bool(ship_layout.get("core_frame_initialized")):
@@ -1005,16 +1015,26 @@ func _draw_quarter_room_skins(alpha: float = 1.0) -> void:
 		var facings: Array = room.get("module_mount_facings")
 		for piece_index: int in range(rects.size()):
 			var destination := _get_grid_rect(rects[piece_index])
-			draw_texture_rect(QUARTER_ROOM_BASE, destination, false, Color(1.0, 1.0, 1.0, alpha))
 			var facing := int(room.get("module_facing_quarters"))
 			if piece_index < facings.size():
 				facing = int(facings[piece_index])
 			facing = posmod(facing, 4)
-			var attachment_quarter := _quarter_attachment_quarter(rects[piece_index], room, facing, hull_cells)
-			var connector_rotation := float(posmod(attachment_quarter - 3, 4)) * PI * 0.5
-			_set_quarter_art_transform(destination.get_center(), connector_rotation)
-			draw_texture_rect(QUARTER_ROOM_CONNECTOR, Rect2(-destination.size * 0.5, destination.size), false, Color(1.0, 1.0, 1.0, alpha))
-			_restore_forge_canvas_transform()
+			_draw_quarter_connectors(rects[piece_index], facing, hull_cells, destination, alpha)
+			var room_type := String(room.get("type_name")).to_upper()
+			if room_type == "PROPULSION":
+				_draw_quarter_oriented_overlay(
+					QUARTER_THRUSTER_OVERLAY,
+					facing,
+					destination,
+					alpha
+				)
+			elif room_type in ["SHIELD", "SHIELDS"]:
+				_draw_quarter_oriented_overlay(
+					QUARTER_DIRECTIONAL_SHIELD_OVERLAY,
+					facing,
+					destination,
+					alpha
+				)
 			if String(room.get("type_name")) != "WEAPONS":
 				continue
 			var weapon: Resource = room.get("weapon_definition")
@@ -1032,6 +1052,52 @@ func _draw_quarter_room_skins(alpha: float = 1.0) -> void:
 			_restore_forge_canvas_transform()
 
 
+func _draw_quarter_oriented_overlay(
+	texture: Texture2D,
+	facing_quarters: int,
+	destination: Rect2,
+	alpha: float
+) -> void:
+	var rotation := float(posmod(facing_quarters - 2, 4)) * PI * 0.5
+	_set_quarter_art_transform(destination.get_center(), rotation)
+	draw_texture_rect(
+		texture,
+		Rect2(-destination.size * 0.5, destination.size),
+		false,
+		Color(1.0, 1.0, 1.0, alpha)
+	)
+	_restore_forge_canvas_transform()
+
+
+func _draw_quarter_connectors(
+	piece_rect: Rect2i,
+	outward_facing: int,
+	hull_cells: Dictionary,
+	destination: Rect2,
+	alpha: float
+) -> void:
+	var fallback_quarter := posmod(outward_facing + 2, 4)
+	for connector: Dictionary in QUARTER_CONNECTOR_RESOLVER.visual_plan(piece_rect, hull_cells, fallback_quarter):
+		var texture := _quarter_connector_texture(connector.get("kind", &"single"))
+		var rotation := float(connector.get("turns", 0)) * PI * 0.5
+		_set_quarter_art_transform(destination.get_center(), rotation)
+		draw_texture_rect(
+			texture,
+			Rect2(-destination.size * 0.5, destination.size),
+			false,
+			Color(1.0, 1.0, 1.0, alpha)
+		)
+		_restore_forge_canvas_transform()
+
+
+func _quarter_connector_texture(kind: StringName) -> Texture2D:
+	match kind:
+		&"straight":
+			return QUARTER_ROOM_CONNECTOR_STRAIGHT
+		&"corner":
+			return QUARTER_ROOM_CONNECTOR_CORNER
+		_:
+			return QUARTER_ROOM_CONNECTOR
 ## Local rotation for authored quarter-room layers must compose with the Forge's
 ## pan and zoom. Replacing that outer transform made every subsequent room in
 ## the same draw pass jump into a different coordinate space.
@@ -1059,11 +1125,20 @@ func _quarter_attachment_quarter(
 	outward_facing: int,
 	hull_cells: Dictionary
 ) -> int:
-	var room_cells := _room_cells(room)
+	var quarter_neighbor := -1
 	for quarter: int in range(4):
 		var neighbor := piece_rect.position + GRID_GEOMETRY.quarter_direction(quarter)
-		if hull_cells.has(neighbor) and not room_cells.has(neighbor):
+		if not hull_cells.has(neighbor):
+			continue
+		var neighbor_room := _room_at_cell(neighbor)
+		if neighbor_room != null and not _is_authored_quarter_room(neighbor_room):
+			# A quarter module mounted directly against an interior room always
+			# connects to that room, even when another QG touches its other side.
 			return quarter
+		if quarter_neighbor < 0:
+			quarter_neighbor = quarter
+	if quarter_neighbor >= 0:
+		return quarter_neighbor
 	return posmod(outward_facing + 2, 4)
 
 
@@ -2307,7 +2382,7 @@ func _draw_power_network_overlay(draw_fields := true, draw_warnings := true) -> 
 				var network: Dictionary = network_value
 				if (network.get("generator_ids", []) as Array).has(selected_id):
 					generator_ids = network.get("generator_ids", [])
-					if float(network.get("demand", 0.0)) > float(network.get("capacity", 0.0)) + 0.001:
+					if float(network.get("missing_links", 0.0)) > 0.001:
 						field_color = power_field_overload_color
 					break
 			for generator_id: StringName in generator_ids:
@@ -2323,15 +2398,31 @@ func _draw_power_network_overlay(draw_fields := true, draw_warnings := true) -> 
 	if not draw_warnings:
 		return
 	var room_factors: Dictionary = report.get("room_factors", {})
-	for room_id_value: Variant in room_factors.keys():
-		var factor := float(room_factors[room_id_value])
-		if factor >= 0.999:
+	var room_requirements: Dictionary = report.get("room_requirements", {})
+	var room_coverage: Dictionary = report.get("room_coverage", {})
+	for room_id_value: Variant in room_requirements.keys():
+		var required := int(room_requirements[room_id_value])
+		if required <= 0:
 			continue
+		var factor := float(room_factors.get(room_id_value, 0.0))
 		var room := room_by_id.get(room_id_value) as Resource
 		if room == null:
 			continue
-		var warning_color := power_field_uncovered_color if factor <= 0.001 else power_field_overload_color
-		_draw_room_boundary(room, warning_color, 3.0, _all_occupied_cells())
+		if factor < 0.999:
+			var warning_color := power_field_uncovered_color if factor <= 0.001 else power_field_overload_color
+			_draw_room_boundary(room, warning_color, 3.0, _all_occupied_cells())
+		var room_bounds := _room_pixel_bounds(room)
+		var icon_size := clampf(CELL_SIZE * 0.13, 7.0, 9.0)
+		var supplied := float(room_coverage.get(room_id_value, 0.0))
+		var strip_width := float(required) * icon_size + float(required - 1)
+		POWER_REQUIREMENT_DISPLAY.draw_strip(
+			self,
+			Vector2(room_bounds.end.x - strip_width * 0.5 - 3.0, room_bounds.position.y + icon_size * 0.5 + 3.0),
+			required,
+			supplied,
+			icon_size,
+			1.0
+		)
 
 
 func _power_field_coverage_cells(source_cells: Dictionary) -> Dictionary:
@@ -2348,6 +2439,45 @@ func _power_field_coverage_cells(source_cells: Dictionary) -> Dictionary:
 				if Vector2(candidate - source_cell).length() <= radius + 0.001:
 					coverage[candidate] = true
 	return coverage
+
+
+func _draw_crew_requirement_overlay() -> void:
+	if ship_layout == null:
+		return
+	var stats := SHIP_RESOURCE_ANALYZER.analyze(ship_layout)
+	var eventual_crew_available := int(stats.get("crew_capacity", 0)) >= int(stats.get("optimal_crew", 0))
+	var crew := get_tree().get_first_node_in_group("crew_simulation")
+	for room: Resource in _rooms():
+		var room_type := String(room.get("type_name"))
+		if room_type in ["UNASSIGNED", "CREW", "CREW_QUARTERS", "MESS_HALL", "SUPPLY_STORAGE", "CARGO"]:
+			continue
+		var minimum := int(room.get("minimum_crew"))
+		var optimal := int(room.get("optimal_crew"))
+		var recipe: Resource = room.get("module_recipe")
+		if recipe != null:
+			minimum = maxi(minimum, int(recipe.get("minimum_crew")))
+			optimal = maxi(optimal, int(recipe.get("optimal_crew")))
+		optimal = ROOM_STAFFING_RULES.effective_requirements(room, minimum, optimal).y
+		if optimal <= 0:
+			continue
+		var operating := 0
+		# The drydock displays whether the completed staffing plan is viable. Crew
+		# do not need to be physically spawned or standing at a station while the
+		# ship is paused on the construction frame.
+		if editor_mode and planned_staffing_display:
+			operating = optimal if eventual_crew_available else 0
+		elif is_instance_valid(crew) and crew.has_method("get_room_staffing"):
+			operating = int(crew.call("get_room_staffing", StringName(room.get("room_id"))))
+		var room_bounds := _room_pixel_bounds(room)
+		var icon_size := clampf(CELL_SIZE * 0.13, 7.0, 9.0)
+		CREW_REQUIREMENT_DISPLAY.draw_status(
+			self,
+			Vector2(room_bounds.end.x - icon_size - 5.0, room_bounds.end.y - icon_size * 0.5 - 3.0),
+			optimal,
+			operating,
+			eventual_crew_available,
+			icon_size
+		)
 
 
 func _inventory_color_for_room(room: Resource) -> Color:

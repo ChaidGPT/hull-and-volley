@@ -1,7 +1,7 @@
 extends SceneTree
 
 const CREW_SIMULATION := preload("res://scripts/crew_simulation.gd")
-const TEST_LAYOUT := preload("res://resources/default_ship_layout.tres")
+const TEST_LAYOUT := preload("res://resources/ship_designs/barebones_starter.tres")
 
 
 func _initialize() -> void:

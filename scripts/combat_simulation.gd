@@ -14,8 +14,15 @@ const CAPITAL_SHIP_INSTANCE_SCENE := preload("res://scenes/ships/capital_ship_in
 const PHYSICS_PROJECTILE_SCENE := preload("res://scenes/physics_projectile.tscn")
 const PHYSICAL_FRAGMENT_SCENE := preload("res://scenes/physical_impact_fragment.tscn")
 const AUTONOMOUS_FIGHTER_SCENE := preload("res://scenes/craft/autonomous_fighter.tscn")
+const SHIP_DESTRUCTION_SMALL_SCENE := preload("res://scenes/projectiles/impact_sprite_small.tscn")
+const SHIP_DESTRUCTION_HEAVY_SCENE := preload("res://scenes/projectiles/impact_sprite_heavy.tscn")
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
 const WEAPON_MOUNT_SOCKET := preload("res://scripts/weapon_mount_socket.gd")
+const SHIP_BUILDER_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
+const ROOM_STAFFING_RULES := preload("res://scripts/room_staffing_rules.gd")
+const SHIELD_SIMULATION := preload("res://scripts/ship_simulation.gd")
+@export var shield_hit_recovery_delay := 2.0
+@export var shield_break_recovery_delay := 5.0
 
 enum EnemyBehavior {
 	HOLD_POSITION,
@@ -27,6 +34,8 @@ enum EnemyBehavior {
 enum ProjectileFaction {
 	PLAYER,
 	ENEMY,
+	TEST_CHARTERED_COMBINE,
+	TEST_FREE_SYSTEMS,
 }
 
 enum WeaponFireMode {
@@ -41,8 +50,8 @@ const TACTICAL_CELL_SIZE := 10.0
 ## 160px in the authored art and 20 tactical units in combat space.
 
 @export_category("Enemy Handling")
-## Editor-authored capital ships available in the development spawn menu.
-@export var sample_ship_definitions: Array[Resource] = []
+## Shipyard-blueprint contacts available in development and training spawners.
+@export var ship_contact_definitions: Array[Resource] = []
 ## Optional grid-built station spawned as a fixed world landmark to the player's starboard side.
 @export var default_space_station_definition: Resource
 ## Where the default station appears relative to the player when the tactical world starts.
@@ -69,6 +78,8 @@ const TACTICAL_CELL_SIZE := 10.0
 @export_range(0.0, 20.0, 0.1) var enemy_shield_regeneration := 0.6
 ## Brief time a projectile remains available to the renderer after impact.
 @export_range(0.01, 0.25, 0.01) var projectile_impact_linger := 0.06
+## Recycled projectile bodies prevent scene/shape/material allocation bursts in fleet combat.
+@export_range(32, 1024, 16) var maximum_pooled_projectiles := 384
 ## Editor-authored recipe controlling the amount, physics, appearance, and lifetime of impact fragments.
 @export var impact_debris_definition: Resource
 ## Default wall durability and atmosphere rules used by spawned enemy hulls.
@@ -77,6 +88,10 @@ const TACTICAL_CELL_SIZE := 10.0
 @export var default_door_definition: Resource
 ## Editor-authored vector hull fragmentation used when a capital ship is destroyed.
 @export var destruction_debris_definition: Resource
+## Time a mortally damaged capital ship remains intact and drifting before breakup.
+@export_range(0.5, 8.0, 0.1) var ship_destruction_sequence_seconds := 2.6
+## Cadence of localized internal blasts during the destruction sequence.
+@export_range(0.08, 1.0, 0.02) var ship_destruction_burst_interval := 0.26
 
 @export_category("World Sound Effects")
 ## Fast burst used when a fighter or similarly small object is destroyed.
@@ -101,6 +116,8 @@ const TACTICAL_CELL_SIZE := 10.0
 @export_range(-60.0, 0.0, 0.5) var world_audio_zoomed_out_db := -24.0
 ## Volume adjustment applied to weapon and world sounds at maximum zoom.
 @export_range(-20.0, 12.0, 0.5) var world_audio_zoomed_in_db := 2.0
+## Dense battles mix into a bounded voice budget instead of creating one audio node per shot.
+@export_range(4, 128, 1) var maximum_world_audio_voices := 28
 
 @export_category("Carrier Operations")
 ## Basic flight-wing behavior used by a plain Hangar grid before a specialized hangar recipe is installed.
@@ -149,15 +166,27 @@ var manual_fire_reservations: Dictionary = {}
 var manual_fire_clock := 0.0
 var weapon_mount_room_cache: Dictionary = {}
 var mount_geometry_cache: Dictionary = {}
+var propulsion_profile_cache: Dictionary = {}
 var tracked_mount_layouts: Dictionary = {}
 var weapon_scene_muzzle_offset_cache: Dictionary = {}
 var registered_physics_ships: Dictionary = {}
 var collision_pair_cooldowns: Dictionary = {}
+## Docking collision exceptions remain active until both hull bounds have
+## actually cleared one another. The fixed undock animation distance can be
+## shorter than a large or unusually-shaped player hull.
+var pending_docking_releases: Dictionary = {}
 var tactical_audio_zoom := 1.0
 var tactical_audio_listener: AudioListener2D
 var default_space_station_spawned := false
 var player_destroyed := false
+var player_destruction_remaining := 0.0
+var player_destruction_burst_clock := 0.0
+var player_destruction_burst_index := 0
+var player_destruction_finalized := false
 var player_direct_fire_active := false
+var projectile_body_pool: Array[RigidBody2D] = []
+var active_world_audio_players: Array[AudioStreamPlayer2D] = []
+var world_audio_player_pool: Array[AudioStreamPlayer2D] = []
 
 
 func _ready() -> void:
@@ -195,17 +224,25 @@ func _physics_process(delta: float) -> void:
 	manual_fire_clock += delta
 	_update_manual_fire_sequence()
 	_update_collision_cooldowns(delta)
+	_update_pending_docking_releases()
 	_update_weapon_operation_states(delta)
 
 	for enemy: Dictionary in enemies:
 		enemy["previous_position"] = enemy["position"]
 		enemy["previous_rotation"] = enemy["rotation"]
-		if not bool(enemy.get("stationary", false)):
-			enemy["shield"] = minf(
-				float(enemy["maximum_shield"]),
-				float(enemy["shield"]) + enemy_shield_regeneration * delta
+		_refresh_enemy_blueprint_operations(enemy)
+		if bool(enemy.get("destruction_active", false)):
+			_sync_doomed_enemy_transform(enemy)
+			continue
+		if bool(enemy.get("combat_test_ship", false)):
+			enemy["combat_target_commitment"] = maxf(
+				float(enemy.get("combat_target_commitment", 0.0)) - delta,
+				0.0
 			)
-		_update_enemy_movement(enemy, player.ship_position, delta)
+		_update_enemy_shields(enemy, delta)
+		var combat_target := _combat_target_for_enemy(enemy, player)
+		var movement_target: Vector2 = combat_target.get("position", enemy["position"])
+		_update_enemy_movement(enemy, movement_target, delta, combat_target)
 		var enemy_structure := enemy.get("structural_state") as ShipStructuralState
 		if enemy_structure != null and (not bool(enemy.get("stationary", false)) or enemy_structure.has_active_atmosphere_events()):
 			enemy_structure.update_atmosphere(delta)
@@ -215,32 +252,27 @@ func _physics_process(delta: float) -> void:
 		for enemy: Dictionary in enemies:
 			if not _enemy_should_defend(enemy):
 				continue
-			_update_enemy_weapons(enemy, player, delta)
+			var combat_target := _combat_target_for_enemy(enemy, player)
+			if not combat_target.is_empty():
+				_update_enemy_weapons(enemy, combat_target, delta)
 		_update_hangar_wings(player, delta)
 	_update_fighters()
 	_update_projectiles(player, delta)
 	_update_impact_fragments(delta)
 	_update_grid_pickups(player, delta)
 	_update_tactical_audio_listener(player.ship_position)
+	if player_destroyed:
+		_update_player_destruction(player, delta)
 
 	for index: int in range(enemies.size() - 1, -1, -1):
 		if float(enemies[index]["hull"]) <= 0.0:
 			if bool(enemies[index].get("training_target", false)):
 				_reset_training_target(enemies[index])
 				continue
-			_report_neutral_contact_destroyed(enemies[index])
-			_play_enemy_destruction_sound(enemies[index])
-			_spawn_destroyed_ship_grid_salvage(enemies[index])
-			var destroyed_body_value: Variant = enemies[index].get("physics_body")
-			if is_instance_valid(destroyed_body_value):
-				var destroyed_body := destroyed_body_value as RigidBody2D
-				_spawn_ship_destruction_fragments(destroyed_body, enemies[index].get("layout", player.ship_layout))
-			var destroyed_instance := enemies[index].get("instance") as Node
-			if is_instance_valid(destroyed_instance):
-				destroyed_instance.call("destroy")
-			elif is_instance_valid(destroyed_body_value):
-				(destroyed_body_value as RigidBody2D).queue_free()
-			enemies.remove_at(index)
+			if not bool(enemies[index].get("destruction_active", false)):
+				_begin_enemy_destruction(enemies[index])
+			if _update_enemy_destruction(enemies[index], delta):
+				_finalize_enemy_destruction(index, player)
 
 
 func spawn_grid_pickup(
@@ -315,6 +347,10 @@ func spawn_random_grid_pickup() -> int:
 	if candidates.is_empty():
 		return -1
 	return spawn_grid_pickup(candidates[randi() % candidates.size()])
+
+
+func clear_grid_pickups() -> void:
+	grid_pickups.clear()
 
 
 func get_grid_pickup_transform(pickup_id: int) -> Dictionary:
@@ -456,10 +492,10 @@ func spawn_enemy() -> int:
 	return _spawn_enemy_with_definition(player.ship_layout, null)
 
 
-func spawn_sample_enemy(definition_index: int) -> int:
-	if definition_index < 0 or definition_index >= sample_ship_definitions.size():
+func spawn_blueprint_contact(definition_index: int) -> int:
+	if definition_index < 0 or definition_index >= ship_contact_definitions.size():
 		return -1
-	var definition: Resource = sample_ship_definitions[definition_index]
+	var definition: Resource = ship_contact_definitions[definition_index]
 	var layout: Resource = definition.get("ship_layout")
 	if layout == null:
 		return -1
@@ -471,9 +507,9 @@ func spawn_training_target(
 	world_position: Vector2,
 	display_name: String
 ) -> int:
-	if definition_index < 0 or definition_index >= sample_ship_definitions.size():
+	if definition_index < 0 or definition_index >= ship_contact_definitions.size():
 		return -1
-	var definition: Resource = sample_ship_definitions[definition_index]
+	var definition: Resource = ship_contact_definitions[definition_index]
 	var layout: Resource = definition.get("ship_layout")
 	if layout == null:
 		return -1
@@ -538,6 +574,7 @@ func set_training_target_aggression(target_id: int, is_aggressive: bool) -> bool
 
 
 func _restore_training_target(target: Dictionary) -> void:
+	target.erase("shield_banks")
 	target["hull"] = float(target.get("maximum_hull", 1.0))
 	target["shield"] = float(target.get("maximum_shield", 0.0))
 	target["room_damage"] = {}
@@ -595,7 +632,15 @@ func _spawn_default_space_station() -> void:
 			ship_instance.set("display_name", "MORROW PROVING YARD")
 
 
-func _spawn_enemy_with_definition(layout: Resource, definition: Resource, spawn_offset: Vector2 = Vector2.INF, spawn_rotation: float = PI, force_stationary: bool = false) -> int:
+func _spawn_enemy_with_definition(
+	layout: Resource,
+	definition: Resource,
+	spawn_offset: Vector2 = Vector2.INF,
+	spawn_rotation: float = PI,
+	force_stationary: bool = false,
+	combat_faction: int = ProjectileFaction.ENEMY,
+	overrides: Dictionary = {}
+) -> int:
 	var player := get_tree().get_first_node_in_group("ship_simulation")
 	var player_position := Vector2.ZERO
 	if is_instance_valid(player):
@@ -610,7 +655,7 @@ func _spawn_enemy_with_definition(layout: Resource, definition: Resource, spawn_
 	add_child(ship_instance)
 	ship_instance.configure(
 		enemy_id,
-		ProjectileFaction.ENEMY,
+		combat_faction,
 		layout,
 		definition,
 		default_behavior,
@@ -618,6 +663,8 @@ func _spawn_enemy_with_definition(layout: Resource, definition: Resource, spawn_
 		default_door_definition,
 		force_stationary
 	)
+	for property_name: String in overrides:
+		ship_instance.set(property_name, overrides[property_name])
 	var physics_world := get_tree().get_first_node_in_group("physics_world")
 	var spawn_position := player_position + spawn_offset
 	var enemy_body: RigidBody2D = null
@@ -627,6 +674,134 @@ func _spawn_enemy_with_definition(layout: Resource, definition: Resource, spawn_
 	enemies.append(ship_instance.make_combat_record(spawn_position, spawn_rotation))
 	_prewarm_layout_mount_geometry(layout)
 	return enemy_id
+
+
+func spawn_combat_test_ship(
+	layout: Resource,
+	political_faction_id: StringName,
+	combat_faction: int,
+	world_position: Vector2,
+	world_rotation: float,
+	display_name: String,
+	tactical_tint: Color,
+	hostile_to_player: bool,
+	engage_npc_teams: bool = true
+) -> int:
+	if layout == null or combat_faction == ProjectileFaction.PLAYER:
+		return -1
+	var layout_stats: Dictionary = SHIP_BUILDER_ANALYZER.analyze(layout)
+	var crew_capacity := int(layout_stats.get("crew_capacity", 0))
+	var authored_shield_capacity := float(layout_stats.get("shield_capacity", 0.0))
+	var player := get_tree().get_first_node_in_group("ship_simulation")
+	var player_position := Vector2(player.get("ship_position")) if is_instance_valid(player) else Vector2.ZERO
+	var is_station := String(layout.get("vessel_kind")).to_upper() == "STATION"
+	var ship_id := _spawn_enemy_with_definition(
+		layout,
+		null,
+		world_position - player_position,
+		world_rotation,
+		is_station,
+		combat_faction,
+		{
+			"display_name": display_name,
+			"tactical_tint": tactical_tint,
+			"political_faction_id": political_faction_id,
+			"behavior": EnemyBehavior.APPROACH,
+			"maximum_shield": authored_shield_capacity,
+		}
+	)
+	var ship := _enemy_by_id(ship_id)
+	if not ship.is_empty():
+		ship["combat_test_ship"] = true
+		ship["hostile_to_player"] = hostile_to_player
+		ship["player_targetable"] = hostile_to_player
+		ship["combat_test_engage_npcs"] = engage_npc_teams
+		# NPC ships use an aggregate crew model rather than individual walking
+		# agents. Test ships begin with every berth filled and therefore receive
+		# full staffing performance from the existing NPC weapon simulation.
+		ship["crew_capacity"] = crew_capacity
+		ship["crew_count"] = crew_capacity
+		ship["healthy_crew_count"] = crew_capacity
+		ship["minimum_crew"] = int(layout_stats.get("minimum_crew", 0))
+		ship["optimal_crew"] = int(layout_stats.get("optimal_crew", 0))
+		ship["fully_staffed"] = true
+		ship["combat_personality"] = _combat_personality_for(ship_id, combat_faction)
+		ship["combat_target_id"] = -1
+		ship["combat_target_commitment"] = 0.0
+	return ship_id
+
+
+func spawn_combat_test_neutral_station(
+	layout: Resource,
+	world_position: Vector2,
+	world_rotation: float,
+	display_name: String,
+	hostile_to_player: bool = false,
+	hostile_to_npcs: bool = false
+) -> int:
+	if layout == null or String(layout.get("vessel_kind")).to_upper() != "STATION":
+		return -1
+	var player := get_tree().get_first_node_in_group("ship_simulation")
+	var player_position := Vector2(player.get("ship_position")) if is_instance_valid(player) else Vector2.ZERO
+	var station_id := _spawn_enemy_with_definition(
+		layout, null, world_position - player_position, world_rotation, true,
+		4,
+		{"display_name": display_name, "tactical_tint": Color(0.68, 0.78, 0.76), "political_faction_id": &"UNAFFILIATED", "combat_active": false}
+	)
+	var station := _enemy_by_id(station_id)
+	if station.is_empty():
+		return -1
+	station["combat_test_ship"] = true
+	station["combat_test_neutral_station"] = true
+	station["hostile_to_player"] = hostile_to_player
+	station["combat_test_engage_npcs"] = hostile_to_npcs
+	station["combat_test_neutral_prearmed"] = hostile_to_player or hostile_to_npcs
+	station["combat_active"] = hostile_to_player or hostile_to_npcs
+	station["player_targetable"] = hostile_to_player
+	station["neutral_contact"] = true
+	station["defense_alert"] = hostile_to_player or hostile_to_npcs
+	station["behavior"] = EnemyBehavior.HOLD_POSITION
+	station["combat_personality"] = _combat_personality_for(station_id, 4)
+	station["combat_target_id"] = -1
+	station["combat_target_commitment"] = 0.0
+	return station_id
+
+
+func _combat_personality_for(ship_id: int, combat_faction: int) -> Dictionary:
+	var random := RandomNumberGenerator.new()
+	random.seed = int(ship_id * 7919 + combat_faction * 104729)
+	var roles := ["BRAWLER", "FLANKER", "SKIRMISHER", "LINEBREAKER", "HUNTER"]
+	var role := String(roles[abs(ship_id + combat_faction) % roles.size()])
+	var range_factor := random.randf_range(0.58, 0.84)
+	var aggression := random.randf_range(0.84, 1.18)
+	var courage := random.randf_range(0.18, 0.42)
+	var focus_fire := random.randf_range(0.15, 0.7)
+	match role:
+		"BRAWLER":
+			range_factor = random.randf_range(0.44, 0.58)
+			aggression = random.randf_range(1.05, 1.24)
+		"SKIRMISHER":
+			range_factor = random.randf_range(0.82, 0.94)
+			courage = random.randf_range(0.32, 0.52)
+		"FLANKER":
+			focus_fire = random.randf_range(0.05, 0.3)
+		"LINEBREAKER":
+			courage = random.randf_range(0.1, 0.26)
+		"HUNTER":
+			focus_fire = random.randf_range(0.65, 0.9)
+	return {
+		"role": role,
+		"range_factor": range_factor,
+		"aggression": aggression,
+		"courage": courage,
+		"focus_fire": focus_fire,
+		"orbit_sign": -1.0 if random.randf() < 0.5 else 1.0,
+		"decision_interval": random.randf_range(0.45, 0.9),
+		"target_commitment": random.randf_range(2.4, 5.5),
+		"phase_offset": random.randf_range(0.0, TAU),
+		"strafe_preference": random.randf_range(0.2, 0.82),
+		"maneuver_persistence": random.randf_range(1.8, 4.5),
+	}
 
 
 func spawn_neutral_contact(
@@ -687,7 +862,7 @@ func clear_enemies() -> void:
 	for projectile: Dictionary in projectiles:
 		var projectile_body := projectile.get("physics_body") as RigidBody2D
 		if is_instance_valid(projectile_body):
-			projectile_body.queue_free()
+			_release_projectile_body(projectile_body)
 	projectiles.clear()
 	for fragment: Dictionary in impact_fragments:
 		var fragment_body := fragment.get("physics_body") as RigidBody2D
@@ -704,7 +879,7 @@ func clear_enemies() -> void:
 			fighter_body.queue_free()
 	fighters.clear()
 	for roster_key_value: Variant in craft_rosters.keys().duplicate():
-		if String(roster_key_value).begins_with("%d:" % ProjectileFaction.ENEMY):
+		if not String(roster_key_value).begins_with("%d:" % ProjectileFaction.PLAYER):
 			craft_rosters.erase(roster_key_value)
 	hangar_launch_cooldowns.clear()
 
@@ -722,7 +897,8 @@ func _update_hangar_wings(player: Node, delta: float) -> void:
 		var enemy_body := enemy.get("physics_body") as RigidBody2D
 		var enemy_layout := enemy.get("layout") as Resource
 		if enemy_layout != null:
-			_update_carrier_hangars(enemy_layout, enemy_body, ProjectileFaction.ENEMY)
+			var enemy_faction := int(enemy_body.get_meta("ship_faction", ProjectileFaction.ENEMY)) if is_instance_valid(enemy_body) else ProjectileFaction.ENEMY
+			_update_carrier_hangars(enemy_layout, enemy_body, enemy_faction)
 
 
 func _update_carrier_hangars(layout: Resource, carrier_body: RigidBody2D, faction: int) -> void:
@@ -973,12 +1149,14 @@ func _on_ship_collision_detected(
 ) -> void:
 	if not is_instance_valid(ship) or not is_instance_valid(other_body):
 		return
+	# Check clearance before classifying the other collider. This keeps docking
+	# safe even if a future station body also belongs to an obstacle group.
+	if _is_cleared_docking_pair(ship, other_body):
+		return
 	if other_body.is_in_group("sector_obstacles"):
 		_apply_ship_obstacle_collision(ship, other_body, point, relative_velocity)
 		return
 	if not other_body.is_in_group("physics_ships"):
-		return
-	if _is_cleared_docking_pair(ship, other_body):
 		return
 	var pair_key := _collision_pair_key(ship, other_body)
 	if collision_pair_cooldowns.has(pair_key):
@@ -1060,7 +1238,7 @@ func _apply_collision_damage_to_ship(body: RigidBody2D, damage: float, point: Ve
 		if is_instance_valid(player):
 			player.apply_hull_damage(damage, room_id)
 			_destroy_player_ship_if_needed(player)
-	elif faction == ProjectileFaction.ENEMY:
+	elif faction != ProjectileFaction.PLAYER:
 		var enemy := _enemy_by_id(int(body.get_meta("ship_id", -1)))
 		if enemy.is_empty():
 			return
@@ -1106,7 +1284,94 @@ func get_manual_target_status(player: Node) -> String:
 	return "%s • OUT OF RANGE OR ARC" % room_name
 
 
-func _update_enemy_movement(enemy: Dictionary, player_position: Vector2, delta: float) -> void:
+func _combat_target_for_enemy(enemy: Dictionary, player: Node) -> Dictionary:
+	if not bool(enemy.get("combat_test_ship", false)):
+		return {
+			"position": Vector2(player.ship_position),
+			"physics_body": player.physics_body,
+			"is_player": true,
+		}
+	var source_body := enemy.get("physics_body") as RigidBody2D
+	var source_faction := int(source_body.get_meta("ship_faction", ProjectileFaction.ENEMY)) if is_instance_valid(source_body) else ProjectileFaction.ENEMY
+	var neutral_station := bool(enemy.get("combat_test_neutral_station", false))
+	if neutral_station and not bool(enemy.get("defense_alert", false)):
+		return {}
+	var aggressor_faction := int(enemy.get("aggressor_combat_faction", -1))
+	var neutral_prearmed := bool(enemy.get("combat_test_neutral_prearmed", false))
+	var engage_npc_teams := bool(enemy.get("combat_test_engage_npcs", true))
+	var source_position: Vector2 = enemy.get("position", Vector2.ZERO)
+	var committed_id := int(enemy.get("combat_target_id", -1))
+	if float(enemy.get("combat_target_commitment", 0.0)) > 0.0:
+		if committed_id == 0 and bool(enemy.get("hostile_to_player", false)) and not bool(player.get("is_destroyed")):
+			return {"position": Vector2(player.ship_position), "physics_body": player.physics_body, "is_player": true}
+		var committed_enemy := _enemy_by_id(committed_id) if engage_npc_teams else {}
+		if not committed_enemy.is_empty() and float(committed_enemy.get("hull", 0.0)) > 0.0:
+			var committed_body := committed_enemy.get("physics_body") as RigidBody2D
+			var committed_faction := int(committed_body.get_meta("ship_faction", -1)) if is_instance_valid(committed_body) else -1
+			if is_instance_valid(committed_body) and committed_faction != source_faction and (not neutral_station or committed_faction == aggressor_faction):
+				return {"position": Vector2(committed_enemy["position"]), "physics_body": committed_body, "enemy_id": committed_id}
+	var nearest: Dictionary = {}
+	var best_score := INF
+	var personality: Dictionary = enemy.get("combat_personality", {})
+	var focus_fire := float(personality.get("focus_fire", 0.5))
+	for candidate: Dictionary in enemies:
+		if not engage_npc_teams:
+			continue
+		if candidate == enemy or float(candidate.get("hull", 0.0)) <= 0.0:
+			continue
+		if not bool(candidate.get("combat_test_ship", false)):
+			continue
+		var candidate_body := candidate.get("physics_body") as RigidBody2D
+		if not is_instance_valid(candidate_body):
+			continue
+		var candidate_faction := int(candidate_body.get_meta("ship_faction", -1))
+		if candidate_faction == source_faction:
+			continue
+		if neutral_station and not neutral_prearmed and candidate_faction != aggressor_faction:
+			continue
+		if bool(candidate.get("combat_test_neutral_station", false)) and (
+			not bool(candidate.get("defense_alert", false))
+			or (
+				not bool(candidate.get("combat_test_neutral_prearmed", false))
+				and int(candidate.get("aggressor_combat_faction", -1)) != source_faction
+			)
+		):
+			continue
+		var distance := source_position.distance_squared_to(candidate["position"])
+		var assigned_attackers := 0
+		for ally: Dictionary in enemies:
+			var ally_body := ally.get("physics_body") as RigidBody2D
+			if is_instance_valid(ally_body) and int(ally_body.get_meta("ship_faction", -1)) == source_faction and int(ally.get("combat_target_id", -1)) == int(candidate["id"]):
+				assigned_attackers += 1
+		var saturation_penalty := float(assigned_attackers) * 180000.0 * (1.0 - focus_fire)
+		var score := distance + saturation_penalty
+		if score < best_score:
+			best_score = score
+			nearest = {
+				"position": Vector2(candidate["position"]),
+				"physics_body": candidate_body,
+				"enemy_id": int(candidate["id"]),
+			}
+	if (bool(enemy.get("hostile_to_player", false)) or (neutral_station and aggressor_faction == ProjectileFaction.PLAYER)) and not bool(player.get("is_destroyed")):
+		var player_distance := source_position.distance_squared_to(player.ship_position)
+		if player_distance < best_score:
+			nearest = {
+				"position": Vector2(player.ship_position),
+				"physics_body": player.physics_body,
+				"is_player": true,
+			}
+	if not nearest.is_empty():
+		enemy["combat_target_id"] = 0 if bool(nearest.get("is_player", false)) else int(nearest.get("enemy_id", -1))
+		enemy["combat_target_commitment"] = float(personality.get("target_commitment", 3.5))
+	return nearest
+
+
+func _update_enemy_movement(
+	enemy: Dictionary,
+	player_position: Vector2,
+	delta: float,
+	combat_target: Dictionary = {}
+) -> void:
 	var physics_body := enemy.get("physics_body") as RigidBody2D
 	if is_instance_valid(physics_body):
 		enemy["position"] = physics_body.global_position
@@ -1122,10 +1387,15 @@ func _update_enemy_movement(enemy: Dictionary, player_position: Vector2, delta: 
 	var distance_to_player := to_player.length()
 	var direction_to_player := to_player.normalized()
 	var desired_velocity := Vector2.ZERO
+	var desired_rotation_override := INF
 
 	var civilian_route: Array = enemy.get("civilian_route", [])
 	if not civilian_route.is_empty():
 		desired_velocity = _civilian_route_velocity(enemy, enemy_position, delta)
+	elif bool(enemy.get("combat_test_ship", false)) and not combat_target.is_empty():
+		var maneuver := _combat_test_maneuver(enemy, combat_target, delta)
+		desired_velocity = maneuver.get("velocity", Vector2.ZERO)
+		desired_rotation_override = float(maneuver.get("rotation", INF))
 	else:
 		match int(enemy["behavior"]):
 			EnemyBehavior.APPROACH:
@@ -1145,7 +1415,11 @@ func _update_enemy_movement(enemy: Dictionary, player_position: Vector2, delta: 
 		var brake_throttle := 1.0 if desired_velocity.is_zero_approx() else 0.0
 		if not desired_velocity.is_zero_approx():
 			var commanded_speed := desired_velocity.length()
-			var desired_rotation := Vector2.UP.angle_to(desired_velocity.normalized())
+			var desired_rotation := (
+				desired_rotation_override
+				if is_finite(desired_rotation_override)
+				else Vector2.UP.angle_to(desired_velocity.normalized())
+			)
 			desired_angular_velocity = clampf(
 				angle_difference(float(enemy["rotation"]), desired_rotation) * enemy_steering_response,
 				-deg_to_rad(enemy_turn_speed_degrees),
@@ -1157,23 +1431,382 @@ func _update_enemy_movement(enemy: Dictionary, player_position: Vector2, delta: 
 				forward_throttle = clampf((heading_alignment - 0.55) / 0.45, 0.0, 1.0)
 			if velocity.length() > commanded_speed + 0.5:
 				brake_throttle = 1.0
-		physics_body.call(
-			"set_propulsion_command",
-			forward_throttle,
-			brake_throttle,
-			desired_angular_velocity,
-			enemy_acceleration,
-			enemy_acceleration,
-			deg_to_rad(enemy_turn_acceleration_degrees),
-			enemy_lateral_stabilization_acceleration
+		var propulsion_profile := _enemy_propulsion_profile(enemy.get("layout") as Resource)
+		# A combat helm may ask for a travel vector that differs from the weapon
+		# bearing. Honor that request only when installed side thrusters can produce
+		# the lateral force; conventional hulls retain turn-then-drive handling.
+		var can_strafe := (
+			is_finite(desired_rotation_override)
+			and bool(propulsion_profile.get("has_lateral_translation", false))
 		)
+		if can_strafe:
+			var local_travel_direction := (
+				desired_velocity.normalized().rotated(-float(enemy["rotation"]))
+				if not desired_velocity.is_zero_approx()
+				else Vector2.ZERO
+			)
+			physics_body.call(
+				"set_translation_command",
+				desired_velocity,
+				desired_angular_velocity,
+				deg_to_rad(enemy_turn_acceleration_degrees),
+				enemy_lateral_stabilization_acceleration,
+				float(propulsion_profile.get("translation_port_acceleration", 0.0)),
+				float(propulsion_profile.get("translation_starboard_acceleration", 0.0)),
+				float(propulsion_profile.get("translation_forward_acceleration", 0.0)),
+				float(propulsion_profile.get("translation_reverse_acceleration", 0.0)),
+				-local_travel_direction
+			)
+		else:
+			physics_body.call(
+				"set_propulsion_command",
+				forward_throttle,
+				brake_throttle,
+				desired_angular_velocity,
+				enemy_acceleration,
+				enemy_acceleration,
+				deg_to_rad(enemy_turn_acceleration_degrees),
+				enemy_lateral_stabilization_acceleration
+			)
 	else:
 		velocity = velocity.move_toward(desired_velocity, enemy_acceleration * delta)
 		enemy["velocity"] = velocity
 		enemy["position"] = enemy_position + velocity * delta
 	if not is_instance_valid(physics_body) and velocity.length_squared() > 0.1:
-		var desired_rotation := Vector2.UP.angle_to(velocity.normalized())
+		var desired_rotation := (
+			desired_rotation_override
+			if is_finite(desired_rotation_override)
+			else Vector2.UP.angle_to(velocity.normalized())
+		)
 		enemy["rotation"] = rotate_toward(float(enemy["rotation"]), desired_rotation, deg_to_rad(enemy_turn_speed_degrees) * delta)
+
+
+## Builds the physical translation authority of an enemy blueprint from the
+## exhaust direction of every installed thruster. Values are normalized to the
+## strongest bank so adding maneuvering thrusters changes available directions
+## without making a blueprint arbitrarily faster because its rooms are larger.
+func _enemy_propulsion_profile(layout: Resource) -> Dictionary:
+	if layout == null:
+		return {}
+	var layout_id := layout.get_instance_id()
+	if propulsion_profile_cache.has(layout_id):
+		return propulsion_profile_cache[layout_id]
+	_track_mount_layout(layout)
+	var banks := {
+		"bow": 0.0,
+		"starboard": 0.0,
+		"aft": 0.0,
+		"port": 0.0,
+	}
+	for room: Resource in layout.get("rooms"):
+		if String(room.get("type_name")) != "PROPULSION":
+			continue
+		var rects: Array[Rect2i] = room.get("grid_rects")
+		var facings: Array = room.get("module_mount_facings")
+		var mount_count := maxi(int(room.get("installed_piece_count")), 1)
+		if mount_count > 1 and rects.size() >= mount_count:
+			for mount_index: int in range(mount_count):
+				var facing := (
+					posmod(int(facings[mount_index]), 4)
+					if mount_index < facings.size()
+					else posmod(GRID_GEOMETRY.resolved_module_facing(layout, room), 4)
+				)
+				_add_enemy_thruster_bank(banks, facing, float(maxi(rects[mount_index].get_area(), 1)))
+		else:
+			var cell_count := 0
+			for rect: Rect2i in rects:
+				cell_count += rect.get_area()
+			_add_enemy_thruster_bank(
+				banks,
+				posmod(GRID_GEOMETRY.resolved_module_facing(layout, room), 4),
+				float(maxi(cell_count, 1))
+			)
+	var strongest_bank := maxf(
+		maxf(float(banks["bow"]), float(banks["aft"])),
+		maxf(float(banks["port"]), float(banks["starboard"]))
+	)
+	var acceleration_scale := enemy_acceleration / maxf(strongest_bank, 1.0)
+	var profile := {
+		"banks": banks,
+		# Exhaust points aft for forward force, starboard for port force, etc.
+		"translation_forward_acceleration": float(banks["aft"]) * acceleration_scale,
+		"translation_reverse_acceleration": float(banks["bow"]) * acceleration_scale,
+		"translation_starboard_acceleration": float(banks["port"]) * acceleration_scale,
+		"translation_port_acceleration": float(banks["starboard"]) * acceleration_scale,
+		"has_lateral_translation": (
+			float(banks["port"]) > 0.001 or float(banks["starboard"]) > 0.001
+		),
+	}
+	propulsion_profile_cache[layout_id] = profile
+	return profile
+
+
+func _add_enemy_thruster_bank(banks: Dictionary, facing: int, output: float) -> void:
+	match posmod(facing, 4):
+		0:
+			banks["bow"] = float(banks["bow"]) + output
+		1:
+			banks["starboard"] = float(banks["starboard"]) + output
+		2:
+			banks["aft"] = float(banks["aft"]) + output
+		3:
+			banks["port"] = float(banks["port"]) + output
+
+
+func _combat_test_maneuver(enemy: Dictionary, target: Dictionary, delta: float) -> Dictionary:
+	var enemy_position: Vector2 = enemy.get("position", Vector2.ZERO)
+	var target_position: Vector2 = target.get("position", enemy_position)
+	var to_target := target_position - enemy_position
+	if to_target.is_zero_approx():
+		return {"velocity": Vector2.ZERO, "rotation": float(enemy.get("rotation", 0.0))}
+	var target_direction := to_target.normalized()
+	var personality: Dictionary = enemy.get("combat_personality", {})
+	var aggression := float(personality.get("aggression", 1.0))
+	var range_factor := float(personality.get("range_factor", 0.72))
+	var orbit_sign := float(personality.get("orbit_sign", 1.0))
+	var hull_ratio := float(enemy.get("hull", 0.0)) / maxf(float(enemy.get("maximum_hull", 1.0)), 1.0)
+	if hull_ratio <= float(personality.get("courage", 0.25)):
+		var retreat_direction := -target_direction
+		return {
+			"velocity": retreat_direction * enemy_speed * 1.12,
+			"rotation": Vector2.UP.angle_to(retreat_direction),
+		}
+	var weapon_range := _layout_maximum_weapon_range(enemy.get("layout") as Resource)
+	var engagement_distance := clampf(weapon_range * range_factor, 240.0, 780.0)
+	var distance := to_target.length()
+	# Outside practical range, close efficiently before beginning a broadside.
+	if distance > maxf(weapon_range * 0.92, engagement_distance + 100.0):
+		return {
+			"velocity": target_direction * enemy_speed * aggression,
+			"rotation": Vector2.UP.angle_to(target_direction),
+		}
+
+	var refresh := maxf(float(enemy.get("combat_helm_refresh", 0.0)) - delta, 0.0)
+	enemy["combat_helm_refresh"] = refresh
+	if refresh <= 0.0 or not enemy.has("combat_attack_rotation"):
+		var preferred_orbit := target_direction.orthogonal() * orbit_sign
+		enemy["combat_attack_rotation"] = _best_battery_attack_rotation(enemy, target_position, preferred_orbit)
+		enemy["combat_helm_refresh"] = float(personality.get("decision_interval", 0.65))
+	var attack_rotation := float(enemy.get("combat_attack_rotation", Vector2.UP.angle_to(target_direction)))
+	var attack_forward := Vector2.UP.rotated(attack_rotation)
+	var under_heavy_threat := _target_has_heavy_weapon_solution(target, enemy_position)
+	var maneuver_refresh := maxf(float(enemy.get("combat_maneuver_refresh", 0.0)) - delta, 0.0)
+	enemy["combat_maneuver_refresh"] = maneuver_refresh
+	if maneuver_refresh <= 0.0 or not enemy.has("combat_maneuver_mode"):
+		enemy["combat_maneuver_mode"] = _choose_combat_maneuver(
+			enemy,
+			under_heavy_threat
+		)
+		enemy["combat_maneuver_refresh"] = float(personality.get("maneuver_persistence", 2.8))
+		var cycle := int(enemy.get("combat_maneuver_cycle", 0)) + 1
+		enemy["combat_maneuver_cycle"] = cycle
+		# Some captains reverse their circling direction between committed maneuvers;
+		# others retain it. This prevents fleets from becoming synchronized rings.
+		if posmod(cycle + int(enemy.get("id", 0)), 3) == 0:
+			enemy["combat_orbit_sign"] = -float(enemy.get("combat_orbit_sign", orbit_sign))
+	var active_orbit_sign := float(enemy.get("combat_orbit_sign", orbit_sign))
+	var orbit_velocity := target_direction.orthogonal() * active_orbit_sign
+	if attack_forward.dot(orbit_velocity) < 0.0:
+		orbit_velocity = -orbit_velocity
+	var radial_correction := target_direction * clampf(
+		(distance - engagement_distance) / maxf(engagement_distance * 0.35, 1.0),
+		-1.0,
+		1.0
+	)
+	var maneuver_mode := String(enemy.get("combat_maneuver_mode", "ORBIT"))
+	var desired_vector := orbit_velocity * (1.0 if under_heavy_threat else 0.58) + radial_correction
+	match maneuver_mode:
+		"PRESS":
+			desired_vector = target_direction * 0.9 + orbit_velocity * 0.22
+		"KITE":
+			desired_vector = -target_direction * 0.72 + orbit_velocity * 0.38
+		"HOLD":
+			desired_vector = radial_correction if absf(distance - engagement_distance) > 45.0 else Vector2.ZERO
+		"STRAFE":
+			desired_vector = orbit_velocity + radial_correction * 0.48
+		"EVADE":
+			desired_vector = orbit_velocity * 1.2 - target_direction * 0.3
+	var desired_direction := desired_vector.normalized()
+	if desired_direction.is_zero_approx():
+		return {"velocity": Vector2.ZERO, "rotation": attack_rotation}
+	var propulsion_profile := _enemy_propulsion_profile(enemy.get("layout") as Resource)
+	desired_direction = _best_supported_combat_direction(
+		desired_direction,
+		attack_rotation,
+		propulsion_profile,
+		target_direction,
+		orbit_velocity
+	)
+	var maneuver_speed_factor := 1.0 if maneuver_mode in ["STRAFE", "EVADE"] else 0.72
+	return {
+		"velocity": desired_direction * enemy_speed * aggression * maneuver_speed_factor,
+		"rotation": attack_rotation,
+	}
+
+
+func _choose_combat_maneuver(enemy: Dictionary, under_heavy_threat: bool) -> String:
+	var personality: Dictionary = enemy.get("combat_personality", {})
+	var profile := _enemy_propulsion_profile(enemy.get("layout") as Resource)
+	var has_lateral := bool(profile.get("has_lateral_translation", false))
+	var cycle := int(enemy.get("combat_maneuver_cycle", 0))
+	var random := RandomNumberGenerator.new()
+	random.seed = int(enemy.get("id", 0)) * 92821 + cycle * 68917 + 17
+	var roll := random.randf()
+	if under_heavy_threat and roll < 0.62:
+		return "EVADE"
+	var strafe_chance := float(personality.get("strafe_preference", 0.45)) if has_lateral else 0.0
+	if roll < strafe_chance:
+		return "STRAFE"
+	roll = (roll - strafe_chance) / maxf(1.0 - strafe_chance, 0.001)
+	var aggression := float(personality.get("aggression", 1.0))
+	var range_factor := float(personality.get("range_factor", 0.72))
+	if roll < clampf(0.22 + (aggression - 1.0) * 0.5, 0.12, 0.38):
+		return "PRESS"
+	if roll < clampf(0.34 + range_factor * 0.22, 0.42, 0.58):
+		return "KITE"
+	if roll > 0.9:
+		return "HOLD"
+	return "ORBIT"
+
+
+## Selects a nearby tactical vector the installed thrust banks can execute while
+## the hull retains its chosen weapon bearing. This is blueprint-agnostic: a
+## broadside ship may orbit on aft thrust, a bow battery may press, and a hull
+## with maneuvering jets may translate laterally or in reverse.
+func _best_supported_combat_direction(
+	desired_direction: Vector2,
+	attack_rotation: float,
+	profile: Dictionary,
+	target_direction: Vector2,
+	orbit_direction: Vector2
+) -> Vector2:
+	if profile.is_empty():
+		return desired_direction
+	var candidates: Array[Vector2] = [
+		desired_direction,
+		target_direction,
+		-target_direction,
+		orbit_direction,
+		-orbit_direction,
+	]
+	var strongest := maxf(
+		maxf(
+			float(profile.get("translation_forward_acceleration", 0.0)),
+			float(profile.get("translation_reverse_acceleration", 0.0))
+		),
+		maxf(
+			float(profile.get("translation_port_acceleration", 0.0)),
+			float(profile.get("translation_starboard_acceleration", 0.0))
+		)
+	)
+	var best := desired_direction
+	var best_score := -INF
+	for candidate: Vector2 in candidates:
+		var local_direction := candidate.rotated(-attack_rotation)
+		var authority := _enemy_translation_authority(profile, local_direction) / maxf(strongest, 0.001)
+		var intent_alignment := desired_direction.dot(candidate)
+		var score := intent_alignment * 0.72 + authority * 1.05
+		if score > best_score:
+			best_score = score
+			best = candidate
+	return best.normalized()
+
+
+func _enemy_translation_authority(profile: Dictionary, local_direction: Vector2) -> float:
+	if local_direction.is_zero_approx():
+		return 0.0
+	var direction := local_direction.normalized()
+	var horizontal := (
+		float(profile.get("translation_starboard_acceleration", 0.0))
+		if direction.x >= 0.0
+		else float(profile.get("translation_port_acceleration", 0.0))
+	)
+	var vertical := (
+		float(profile.get("translation_reverse_acceleration", 0.0))
+		if direction.y >= 0.0
+		else float(profile.get("translation_forward_acceleration", 0.0))
+	)
+	return absf(direction.x) * horizontal + absf(direction.y) * vertical
+
+
+func _best_battery_attack_rotation(enemy: Dictionary, target_position: Vector2, preferred_forward: Vector2 = Vector2.ZERO) -> float:
+	var layout := enemy.get("layout") as Resource
+	if layout == null:
+		return Vector2.UP.angle_to((target_position - Vector2(enemy["position"])).normalized())
+	var best_rotation := float(enemy.get("rotation", 0.0))
+	var best_score := -INF
+	# Twelve headings are sufficient for authored weapon arcs and cut tactical
+	# scoring work in half during large fleet actions.
+	for step: int in range(12):
+		var candidate_rotation := float(step) * TAU / 12.0
+		var score := 0.0
+		for room: Resource in layout.get("rooms"):
+			if String(room.get("type_name")) != "WEAPONS":
+				continue
+			var weapon := room.get("weapon_definition") as Resource
+			if weapon == null:
+				continue
+			var weapon_weight := maxf(float(weapon.get("damage")), 1.0) / maxf(float(weapon.get("reload_seconds")), 0.1)
+			for mount_index: int in range(_weapon_mount_count(room)):
+				var mount_room := _weapon_mount_room(room, mount_index)
+				var mount := _get_mount_data(layout, mount_room, enemy["position"], candidate_rotation)
+				if not _resolve_firing_mount(mount, target_position, weapon).is_empty():
+					score += weapon_weight
+		# Prefer the nearest equally useful bearing so ships do not reverse their
+		# broadside selection every time two sampled headings tie.
+		var reference_rotation := (
+			Vector2.UP.angle_to(preferred_forward)
+			if not preferred_forward.is_zero_approx()
+			else float(enemy.get("rotation", 0.0))
+		)
+		score -= absf(angle_difference(reference_rotation, candidate_rotation)) * 0.035
+		if score > best_score:
+			best_score = score
+			best_rotation = candidate_rotation
+	return best_rotation
+
+
+func _target_has_heavy_weapon_solution(target: Dictionary, threatened_position: Vector2) -> bool:
+	var target_id := int(target.get("enemy_id", -1))
+	if target_id < 0:
+		return false
+	var threat := _enemy_by_id(target_id)
+	if threat.is_empty():
+		return false
+	var layout := threat.get("layout") as Resource
+	if layout == null:
+		return false
+	for room: Resource in layout.get("rooms"):
+		if String(room.get("type_name")) != "WEAPONS":
+			continue
+		var weapon := room.get("weapon_definition") as Resource
+		if weapon == null or float(weapon.get("traverse_degrees")) >= 90.0:
+			continue
+		if float(weapon.get("damage")) < 12.0:
+			continue
+		for mount_index: int in range(_weapon_mount_count(room)):
+			var mount := _get_mount_data(
+				layout,
+				_weapon_mount_room(room, mount_index),
+				threat["position"],
+				threat["rotation"]
+			)
+			if not _resolve_firing_mount(mount, threatened_position, weapon).is_empty():
+				return true
+	return false
+
+
+func _layout_maximum_weapon_range(layout: Resource) -> float:
+	var maximum := 420.0
+	if layout == null:
+		return maximum
+	for room: Resource in layout.get("rooms"):
+		if String(room.get("type_name")) != "WEAPONS":
+			continue
+		var weapon := room.get("weapon_definition") as Resource
+		if weapon != null:
+			maximum = maxf(maximum, float(weapon.get("maximum_range")))
+	return maximum
 
 
 func _civilian_route_velocity(enemy: Dictionary, current_position: Vector2, delta: float) -> Vector2:
@@ -1205,15 +1838,16 @@ func _civilian_route_velocity(enemy: Dictionary, current_position: Vector2, delt
 
 func _update_player_weapons(player: Node, delta: float) -> void:
 	var layout: Resource = player.ship_layout
-	var primary_target := _nearest_enemy(player.ship_position)
+	var automatic_targets := _player_automatic_target_candidates()
+	var primary_target := _nearest_enemy(player.ship_position, automatic_targets)
 	var manual_target := _enemy_by_id(player.manual_target_enemy_id)
 	for room: Resource in layout.get("rooms"):
 		if room.get("type_name") != "WEAPONS":
 			continue
+		var room_id: StringName = room.get("room_id")
 		var weapon: Resource = room.get("weapon_definition")
 		if weapon == null:
 			continue
-		var room_id: StringName = room.get("room_id")
 		for mount_index: int in range(_weapon_mount_count(room)):
 			var cooldown_key := _weapon_mount_cooldown_key(room_id, mount_index)
 			var cooldown := maxf(float(player_weapon_cooldowns.get(cooldown_key, 0.0)) - delta, 0.0)
@@ -1240,7 +1874,7 @@ func _update_player_weapons(player: Node, delta: float) -> void:
 			elif player.targeting_doctrine == 1:
 				target = primary_target
 			else:
-				target = _nearest_valid_enemy(mount, weapon)
+				target = _nearest_valid_enemy(mount, weapon, automatic_targets)
 			if target.is_empty():
 				continue
 			if target_position == Vector2.ZERO:
@@ -1337,15 +1971,7 @@ func fire_direct_volley(player: Node, aim_direction: Vector2) -> int:
 				"aim_direction": aim_direction,
 				"bow_order": (Vector2(firing_mount["position"]) - Vector2(player.ship_position)).dot(ship_forward),
 			})
-	eligible_mounts.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		var a_order := float(a["bow_order"])
-		var b_order := float(b["bow_order"])
-		if not is_equal_approx(a_order, b_order):
-			return a_order > b_order
-		if String(a["room_id"]) != String(b["room_id"]):
-			return String(a["room_id"]) < String(b["room_id"])
-		return int(a["mount_index"]) < int(b["mount_index"])
-	)
+	eligible_mounts.sort_custom(weapon_firing_order_before)
 	if eligible_mounts.is_empty():
 		return 0
 	var sequence_start := manual_fire_clock
@@ -1362,6 +1988,16 @@ func fire_direct_volley(player: Node, aim_direction: Vector2) -> int:
 		entry["ready_at"] = sequence_start + float(entry_index) * manual_volley_mount_interval
 		pending_manual_fire.append(entry)
 	return scheduled_count
+
+
+func weapon_firing_order_before(a: Dictionary, b: Dictionary) -> bool:
+	var a_order := float(a["bow_order"])
+	var b_order := float(b["bow_order"])
+	if not is_equal_approx(a_order, b_order):
+		return a_order > b_order
+	if String(a["room_id"]) != String(b["room_id"]):
+		return String(a["room_id"]) < String(b["room_id"])
+	return int(a["mount_index"]) < int(b["mount_index"])
 
 
 func _update_manual_fire_sequence() -> void:
@@ -1408,18 +2044,38 @@ func _execute_manual_fire_entry(entry: Dictionary) -> bool:
 	return true
 
 
-func _update_enemy_weapons(enemy: Dictionary, player: Node, delta: float) -> void:
+func _update_enemy_weapons(enemy: Dictionary, target: Dictionary, delta: float) -> void:
 	var layout := enemy.get("layout") as Resource
 	if layout == null:
 		return
+	var target_position: Vector2 = target.get("position", enemy["position"])
+	var combat_faction := int(enemy.get("combat_faction", ProjectileFaction.ENEMY))
+	var enemy_body := enemy.get("physics_body") as RigidBody2D
+	if is_instance_valid(enemy_body):
+		combat_faction = int(enemy_body.get_meta("ship_faction", combat_faction))
 	var cooldowns: Dictionary = enemy["weapon_cooldowns"]
 	for room: Resource in layout.get("rooms"):
 		if room.get("type_name") != "WEAPONS":
 			continue
+		var room_id: StringName = room.get("room_id")
+		var power_factor := float((enemy.get("room_power_factors", {}) as Dictionary).get(room_id, 0.0))
+		if power_factor <= 0.001:
+			continue
+		var required_crew := int(ROOM_STAFFING_RULES.effective_requirements(
+			room,
+			int(room.get("minimum_crew")),
+			int(room.get("optimal_crew"))
+		).y)
+		var crew_factor := 1.0
+		if required_crew > 0:
+			var available_crew := int(enemy.get("healthy_crew_count", enemy.get("crew_count", 0)))
+			var total_required := maxi(int(enemy.get("optimal_crew", required_crew)), required_crew)
+			crew_factor = clampf(float(available_crew) / float(total_required), 0.0, 1.0)
+		if crew_factor <= 0.001:
+			continue
 		var weapon: Resource = room.get("weapon_definition")
 		if weapon == null:
 			continue
-		var room_id: StringName = room.get("room_id")
 		for mount_index: int in range(_weapon_mount_count(room)):
 			var cooldown_key := _weapon_mount_cooldown_key(room_id, mount_index)
 			var cooldown := maxf(float(cooldowns.get(cooldown_key, 0.0)) - delta, 0.0)
@@ -1428,14 +2084,15 @@ func _update_enemy_weapons(enemy: Dictionary, player: Node, delta: float) -> voi
 				continue
 			var mount_room := _weapon_mount_room(room, mount_index)
 			var mount := _get_mount_data(layout, mount_room, enemy["position"], enemy["rotation"])
-			var firing_mount := _resolve_firing_mount(mount, player.ship_position, weapon)
+			var firing_mount := _resolve_firing_mount(mount, target_position, weapon)
 			if firing_mount.is_empty():
 				continue
-			if not _fire_projectile(firing_mount, player.ship_position, weapon, ProjectileFaction.ENEMY, enemy["velocity"], enemy["physics_body"]):
+			if not _fire_projectile(firing_mount, target_position, weapon, combat_faction, enemy["velocity"], enemy_body):
 				continue
-			var reload_time: float = float(weapon.get("reload_seconds")) / _weapon_room_group_bonus(room)
+			var operating_factor := maxf(minf(power_factor, crew_factor), 0.1)
+			var reload_time: float = float(weapon.get("reload_seconds")) / (_weapon_room_group_bonus(room) * operating_factor)
 			cooldowns[cooldown_key] = reload_time
-			_mark_weapon_fired(ProjectileFaction.ENEMY, int(enemy["id"]), room_id, mount_index, reload_time)
+			_mark_weapon_fired(combat_faction, int(enemy["id"]), room_id, mount_index, reload_time)
 			# Large batteries used to release every ready mount in one physics frame.
 			# Besides looking unnaturally synchronized, that produced a large burst of
 			# projectile, audio, and impact work. One shot per ship per tick preserves
@@ -1443,6 +2100,80 @@ func _update_enemy_weapons(enemy: Dictionary, player: Node, delta: float) -> voi
 			enemy["weapon_cooldowns"] = cooldowns
 			return
 	enemy["weapon_cooldowns"] = cooldowns
+
+
+## Rebuilds operating state from the same reactor-field and staffing rules used
+## by the Shipyard. Destroyed reactor grids stop covering station services and
+## weapons; an unmanned station can remain physically present but cannot work.
+func _refresh_enemy_blueprint_operations(enemy: Dictionary) -> void:
+	var layout := enemy.get("layout") as Resource
+	if layout == null:
+		return
+	var room_damage: Dictionary = enemy.get("room_damage", {})
+	var generator_factors: Dictionary = {}
+	for room: Resource in layout.get("rooms"):
+		if String(room.get("type_name")) not in ["POWER", "REACTOR", "ENGINE"]:
+			continue
+		var room_id: StringName = room.get("room_id")
+		var maximum_health := maxf(float(room.get("maximum_health")), 1.0)
+		generator_factors[room_id] = clampf(
+			1.0 - float(room_damage.get(room_id, 0.0)) / maximum_health,
+			0.0,
+			1.0
+		)
+	var power_report: Dictionary = SHIP_BUILDER_ANALYZER.power_network_report(layout, generator_factors)
+	enemy["room_power_factors"] = power_report.get("room_factors", {})
+
+	var essential_crew := 0
+	var essential_power := 1.0
+	var room_factors: Dictionary = enemy["room_power_factors"]
+	for room: Resource in layout.get("rooms"):
+		var room_type := String(room.get("type_name"))
+		if room_type not in ["COMMAND", "BRIDGE", "POWER", "REACTOR", "ENGINE", "DOCKING"]:
+			continue
+		var staffing := ROOM_STAFFING_RULES.effective_requirements(
+			room,
+			int(room.get("minimum_crew")),
+			int(room.get("optimal_crew"))
+		)
+		essential_crew += staffing.x
+		if room_type in ["COMMAND", "BRIDGE", "DOCKING"]:
+			essential_power = minf(
+				essential_power,
+				float(room_factors.get(room.get("room_id"), 0.0))
+			)
+	var healthy_crew := int(enemy.get("healthy_crew_count", enemy.get("crew_count", 0)))
+	var crew_ready := healthy_crew >= essential_crew
+	var shield_weight := 0.0
+	var working_shield_weight := 0.0
+	for room: Resource in layout.get("rooms"):
+		if String(room.get("type_name")) != "SHIELDS":
+			continue
+		var room_id: StringName = room.get("room_id")
+		var maximum_health := maxf(float(room.get("maximum_health")), 1.0)
+		var health_factor := clampf(
+			1.0 - float(room_damage.get(room_id, 0.0)) / maximum_health,
+			0.0,
+			1.0
+		)
+		var cell_weight := 0.0
+		for rect: Rect2i in room.get("grid_rects"):
+			cell_weight += float(rect.size.x * rect.size.y)
+		cell_weight = maxf(cell_weight, 1.0)
+		shield_weight += cell_weight
+		working_shield_weight += cell_weight * minf(
+			health_factor,
+			float(room_factors.get(room_id, 0.0))
+		)
+	var shield_factor := (
+		clampf(working_shield_weight / shield_weight, 0.0, 1.0)
+		if shield_weight > 0.0
+		else 0.0
+	)
+	enemy["shield_operating_factor"] = shield_factor
+	enemy["station_operational"] = essential_power >= 0.999 and crew_ready
+	enemy["station_power_factor"] = essential_power
+	enemy["station_required_crew"] = essential_crew
 
 
 func _fire_projectile(mount: Dictionary, target_position: Vector2, weapon: Resource, faction: int, inherited_velocity: Vector2, shooter_body: RigidBody2D, target_room_id: StringName = &"") -> bool:
@@ -1473,29 +2204,34 @@ func _fire_projectile(mount: Dictionary, target_position: Vector2, weapon: Resou
 	var physics_world := get_tree().get_first_node_in_group("physics_world")
 	if not is_instance_valid(physics_world):
 		return false
-	var physics_projectile := PHYSICS_PROJECTILE_SCENE.instantiate() as RigidBody2D
-	physics_projectile.set("collision_radius", weapon.get("projectile_collision_radius"))
 	var authored_projectile_mass := float(weapon.get("projectile_mass"))
 	var collision_mass := (
 		maxf(authored_projectile_mass * projectile_knockback_mass_scale, 0.001)
 		if projectile_knockback_mass_scale > 0.0
 		else 0.001
 	)
-	physics_projectile.set("projectile_mass", collision_mass)
-	physics_projectile.set("bounce", weapon.get("projectile_bounce"))
-	physics_world.add_child(physics_projectile)
-	physics_projectile.global_position = spawn_position
-	physics_projectile.global_rotation = fire_direction.angle()
-	physics_projectile.linear_velocity = projectile_velocity
+	var physics_projectile := _acquire_projectile_body(physics_world)
+	physics_projectile.call(
+		"configure_projectile",
+		float(weapon.get("projectile_collision_radius")),
+		collision_mass,
+		float(weapon.get("projectile_bounce"))
+	)
+	physics_projectile.call(
+		"activate_projectile",
+		projectile_id,
+		spawn_position,
+		fire_direction.angle(),
+		projectile_velocity
+	)
 	for ship_value: Variant in get_tree().get_nodes_in_group("physics_ships"):
 		var ship_body := ship_value as RigidBody2D
 		if is_instance_valid(ship_body) and int(ship_body.get_meta("ship_faction", -1)) == faction:
-			physics_projectile.add_collision_exception_with(ship_body)
+			physics_projectile.call("add_projectile_collision_exception", ship_body)
 	for fighter_value: Variant in get_tree().get_nodes_in_group("autonomous_fighters"):
 		var friendly_fighter := fighter_value as RigidBody2D
 		if is_instance_valid(friendly_fighter) and int(friendly_fighter.get_meta("ship_faction", -1)) == faction:
-			physics_projectile.add_collision_exception_with(friendly_fighter)
-	physics_projectile.connect("impact_detected", _on_physical_projectile_impact.bind(projectile_id))
+			physics_projectile.call("add_projectile_collision_exception", friendly_fighter)
 	projectiles.append({
 		"id": projectile_id,
 		"position": spawn_position,
@@ -1529,6 +2265,27 @@ func _fire_projectile(mount: Dictionary, target_position: Vector2, weapon: Resou
 	})
 	_play_optional_firing_sound(weapon, spawn_position)
 	return true
+
+
+func _acquire_projectile_body(physics_world: Node) -> RigidBody2D:
+	var body: RigidBody2D
+	if not projectile_body_pool.is_empty():
+		body = projectile_body_pool.pop_back()
+	else:
+		body = PHYSICS_PROJECTILE_SCENE.instantiate() as RigidBody2D
+		physics_world.add_child(body)
+		body.connect("impact_detected", _on_physical_projectile_impact)
+	return body
+
+
+func _release_projectile_body(body: RigidBody2D) -> void:
+	if not is_instance_valid(body):
+		return
+	body.call("prepare_for_pool")
+	if projectile_body_pool.size() < maximum_pooled_projectiles:
+		projectile_body_pool.append(body)
+	else:
+		body.queue_free()
 
 
 ## The projectile's travel direction and its physical exit point are deliberately
@@ -1639,18 +2396,36 @@ func _play_world_sound(
 	var physics_world := get_tree().get_first_node_in_group("physics_world") as Node2D
 	if not is_instance_valid(physics_world):
 		return null
-	var player := AudioStreamPlayer2D.new()
+	# At fleet scale many identical reports occur in the same audible instant.
+	# A voice budget preserves the mix without allocating hundreds of nodes.
+	if active_world_audio_players.size() >= maximum_world_audio_voices:
+		return null
+	var player: AudioStreamPlayer2D
+	if not world_audio_player_pool.is_empty():
+		player = world_audio_player_pool.pop_back()
+	else:
+		player = AudioStreamPlayer2D.new()
+		physics_world.add_child(player)
+		player.finished.connect(_on_world_audio_finished.bind(player))
 	player.stream = stream
 	player.max_distance = world_audio_max_distance
 	player.attenuation = world_audio_attenuation
 	player.volume_db = base_volume_db + _world_audio_zoom_volume_db()
 	if pitch_variation > 0.0:
 		player.pitch_scale = randf_range(1.0 - pitch_variation, 1.0 + pitch_variation)
-	physics_world.add_child(player)
 	player.global_position = world_position
-	player.finished.connect(player.queue_free)
+	active_world_audio_players.append(player)
 	player.play()
 	return player
+
+
+func _on_world_audio_finished(player: AudioStreamPlayer2D) -> void:
+	active_world_audio_players.erase(player)
+	if not is_instance_valid(player):
+		return
+	player.stop()
+	player.stream = null
+	world_audio_player_pool.append(player)
 
 
 func _world_audio_zoom_volume_db() -> float:
@@ -1691,6 +2466,108 @@ func _play_enemy_destruction_sound(enemy: Dictionary) -> void:
 		world_position,
 		1.0 if is_large else -1.0,
 		0.045
+	)
+
+
+func _begin_enemy_destruction(enemy: Dictionary) -> void:
+	enemy["destruction_active"] = true
+	enemy["destruction_remaining"] = ship_destruction_sequence_seconds
+	enemy["destruction_burst_clock"] = 0.0
+	enemy["destruction_burst_index"] = 0
+	enemy["combat_active"] = false
+	enemy["player_targetable"] = false
+	enemy["defense_alert"] = false
+	enemy["station_operational"] = false
+	_cancel_enemy_docking_clearance(enemy)
+	var body := enemy.get("physics_body") as RigidBody2D
+	if is_instance_valid(body):
+		body.set_meta("destruction_active", true)
+		if body.has_method("set_coast_command"):
+			body.call("set_coast_command")
+		if not bool(enemy.get("stationary", false)) and absf(body.angular_velocity) < 0.08:
+			body.angular_velocity = randf_range(-0.16, 0.16)
+
+
+func _sync_doomed_enemy_transform(enemy: Dictionary) -> void:
+	var body := enemy.get("physics_body") as RigidBody2D
+	if not is_instance_valid(body):
+		return
+	enemy["position"] = body.global_position
+	enemy["rotation"] = body.global_rotation
+	enemy["velocity"] = body.linear_velocity
+	if body.has_method("set_coast_command"):
+		body.call("set_coast_command")
+
+
+func _update_enemy_destruction(enemy: Dictionary, delta: float) -> bool:
+	_sync_doomed_enemy_transform(enemy)
+	var remaining := maxf(float(enemy.get("destruction_remaining", 0.0)) - delta, 0.0)
+	var burst_clock := float(enemy.get("destruction_burst_clock", 0.0)) - delta
+	var burst_index := int(enemy.get("destruction_burst_index", 0))
+	if burst_clock <= 0.0 and remaining > 0.0:
+		var body := enemy.get("physics_body") as RigidBody2D
+		_spawn_ship_destruction_burst(body, enemy.get("layout") as Resource, burst_index)
+		if burst_index % 2 == 0 and is_instance_valid(body):
+			_play_world_sound(small_explosion_sound, body.global_position, -5.0, 0.08)
+		burst_index += 1
+		burst_clock = ship_destruction_burst_interval
+	enemy["destruction_remaining"] = remaining
+	enemy["destruction_burst_clock"] = burst_clock
+	enemy["destruction_burst_index"] = burst_index
+	return remaining <= 0.0
+
+
+func _finalize_enemy_destruction(index: int, player: Node) -> void:
+	var enemy: Dictionary = enemies[index]
+	_report_neutral_contact_destroyed(enemy)
+	_play_enemy_destruction_sound(enemy)
+	_spawn_destroyed_ship_grid_salvage(enemy)
+	var destroyed_body := enemy.get("physics_body") as RigidBody2D
+	if is_instance_valid(destroyed_body):
+		_spawn_ship_destruction_burst(destroyed_body, enemy.get("layout") as Resource, int(enemy.get("destruction_burst_index", 0)), true)
+		_spawn_ship_destruction_fragments(destroyed_body, enemy.get("layout", player.ship_layout))
+		registered_physics_ships.erase(destroyed_body.get_instance_id())
+	var destroyed_instance := enemy.get("instance") as Node
+	if is_instance_valid(destroyed_instance):
+		destroyed_instance.call("destroy")
+	elif is_instance_valid(destroyed_body):
+		destroyed_body.queue_free()
+	enemies.remove_at(index)
+
+
+func _spawn_ship_destruction_burst(
+	ship_body: RigidBody2D,
+	layout: Resource,
+	burst_index: int,
+	heavy: bool = false
+) -> void:
+	if not is_instance_valid(ship_body) or layout == null:
+		return
+	var occupied_cells: Array = _layout_cells(layout).keys()
+	var local_point := Vector2.ZERO
+	if not occupied_cells.is_empty():
+		var bounds: Rect2i = layout.call("get_occupied_bounds")
+		var geometry_size := GRID_GEOMETRY.grid_pixel_size(layout, bounds, TACTICAL_CELL_SIZE)
+		var cell: Vector2i = occupied_cells[randi() % occupied_cells.size()]
+		local_point = (
+			GRID_GEOMETRY.cell_rect(layout, cell, bounds, TACTICAL_CELL_SIZE).get_center()
+			- geometry_size * 0.5
+			+ Vector2(randf_range(-3.2, 3.2), randf_range(-3.2, 3.2))
+		)
+	var outward_normal := local_point.normalized().rotated(ship_body.global_rotation)
+	if outward_normal.is_zero_approx():
+		outward_normal = Vector2.RIGHT.rotated(randf_range(0.0, TAU))
+	var effect_scene := (
+		SHIP_DESTRUCTION_HEAVY_SCENE
+		if heavy or burst_index % 4 == 3
+		else SHIP_DESTRUCTION_SMALL_SCENE
+	)
+	_request_impact_sprite(
+		ship_body,
+		ship_body.to_global(local_point),
+		outward_normal,
+		Color(1.0, 0.42, 0.12, 1.0),
+		effect_scene
 	)
 
 
@@ -1746,7 +2623,7 @@ func _update_projectiles(player: Node, delta: float) -> void:
 			projectile["impact_linger"] = float(projectile["impact_linger"]) - delta
 			if float(projectile["impact_linger"]) <= 0.0:
 				if is_instance_valid(physics_body):
-					physics_body.queue_free()
+					_release_projectile_body(physics_body)
 				projectiles.remove_at(index)
 			continue
 		if not is_instance_valid(physics_body):
@@ -1760,7 +2637,7 @@ func _update_projectiles(player: Node, delta: float) -> void:
 		projectile["travelled_distance"] = float(projectile.get("travelled_distance", 0.0)) + travelled_step
 		projectile["remaining_range"] = float(projectile["remaining_range"]) - travelled_step
 		if float(projectile["remaining_range"]) <= 0.0:
-			physics_body.queue_free()
+			_release_projectile_body(physics_body)
 			projectiles.remove_at(index)
 
 
@@ -1806,10 +2683,10 @@ func _on_physical_projectile_impact(
 				"apply_damage",
 				float(projectile["damage"]) * float(projectile["fighter_damage_multiplier"])
 			)
-		elif faction == ProjectileFaction.PLAYER:
+		elif collider_faction != ProjectileFaction.PLAYER:
 			var enemy := _enemy_by_id(int(collider.get_meta("ship_id", -1)))
 			if not enemy.is_empty():
-				var enemy_damage_report := _apply_damage_to_enemy(enemy, projectile, impact_room_id)
+				var enemy_damage_report := _apply_damage_to_enemy(enemy, projectile, impact_room_id, point - Vector2(enemy["position"]))
 				absorbed_damage = float(enemy_damage_report["shield_absorbed"])
 				unshielded_damage = float(enemy_damage_report["hull_damage"])
 		else:
@@ -1831,7 +2708,7 @@ func _on_physical_projectile_impact(
 				unshielded_damage = float(damage_report["hull_damage"])
 				catastrophic_breach = bool(damage_report.get("breached", false))
 				_destroy_player_ship_if_needed(player)
-		if unshielded_damage > 0.0 and not bool(collider.get_meta("is_fighter", false)) and (faction == ProjectileFaction.PLAYER or catastrophic_breach):
+		if unshielded_damage > 0.0 and not bool(collider.get_meta("is_fighter", false)) and (collider_faction != ProjectileFaction.PLAYER or catastrophic_breach):
 			var structure_value: Variant = (
 				collider.get_meta("structural_state")
 				if collider.has_meta("structural_state")
@@ -1897,6 +2774,9 @@ func _shield_impact_standoff_for(collider: RigidBody2D) -> float:
 		return 5.0
 	var visual: Control
 	if faction == ProjectileFaction.PLAYER:
+		var player_shield := ship_view.get("shield_visual") as Control
+		if is_instance_valid(player_shield):
+			return float(player_shield.get("impact_standoff"))
 		visual = ship_view.get("ship_visual") as Control
 	else:
 		var visuals: Dictionary = ship_view.get("enemy_visuals")
@@ -2085,20 +2965,92 @@ func _segment_rect_entry(segment_start: Vector2, segment_end: Vector2, rect: Rec
 	return {"weight": entry_weight, "normal": entry_normal}
 
 
+func _ensure_enemy_shields(enemy: Dictionary) -> void:
+	if enemy.has("shield_banks"):
+		return
+	var banks: Dictionary = {}
+	var layout: Resource = enemy.get("layout")
+	if layout != null:
+		# Use the player's geometry rules so exposed directional pieces and
+		# omnidirectional rooms project exactly the same banks for both sides.
+		var model := SHIELD_SIMULATION.new()
+		model.ship_layout = layout
+		model.call("_initialize_directional_shields")
+		for facing: Variant in model.shield_bank_maximums:
+			banks[facing] = {"maximum": model.shield_bank_maximums[facing], "current": model.shield_bank_maximums[facing], "rooms": model.shield_bank_rooms[facing], "recovery_delay": 0.0}
+		model.free()
+	else:
+		for facing: int in range(4):
+			var capacity := float(enemy.get("maximum_shield", 0.0)) / 4.0
+			banks[facing] = {"maximum": capacity, "current": float(enemy.get("shield", capacity * 4.0)) / 4.0, "rooms": [], "recovery_delay": 0.0}
+	enemy["shield_banks"] = banks
+	_sync_enemy_shields(enemy)
+
+
+func _update_enemy_shields(enemy: Dictionary, delta: float) -> void:
+	_ensure_enemy_shields(enemy)
+	var banks: Dictionary = enemy["shield_banks"]
+	var layout: Resource = enemy.get("layout")
+	var damage: Dictionary = enemy.get("room_damage", {})
+	var power: Dictionary = enemy.get("room_power_factors", {})
+	for facing: Variant in banks:
+		var bank: Dictionary = banks[facing]
+		var delay := float(bank.get("recovery_delay", 0.0))
+		bank["recovery_delay"] = maxf(delay - delta, 0.0)
+		var factor := 1.0
+		var rooms: Array = bank["rooms"]
+		if layout != null and not rooms.is_empty():
+			factor = 0.0
+			for room: Resource in layout.get("rooms"):
+				if rooms.has(room.get("room_id")):
+					var health := clampf(1.0 - float(damage.get(room.get("room_id"), 0.0)) / maxf(float(room.get("maximum_health")), 1.0), 0.0, 1.0)
+					factor += minf(health, float(power.get(room.get("room_id"), 1.0))) / float(rooms.size())
+		bank["online"] = factor > 0.0
+		bank["current"] = minf(float(bank["current"]) + enemy_shield_regeneration * factor * maxf(delta - delay, 0.0), float(bank["maximum"]) * factor)
+	_sync_enemy_shields(enemy)
+
+
+func _sync_enemy_shields(enemy: Dictionary) -> void:
+	enemy["shield"] = 0.0
+	enemy["maximum_shield"] = 0.0
+	for bank: Dictionary in enemy.get("shield_banks", {}).values():
+		enemy["shield"] += float(bank["current"])
+		enemy["maximum_shield"] += float(bank["maximum"])
+		bank["ratio"] = float(bank["current"]) / maxf(float(bank["maximum"]), 0.001)
+
+
 func _apply_damage_to_enemy(
 	enemy: Dictionary,
 	projectile: Dictionary,
-	target_room_id: StringName = &""
+	target_room_id: StringName = &"",
+	impact_world_direction: Vector2 = Vector2.ZERO
 ) -> Dictionary:
 	var damage := maxf(float(projectile.get("damage", 0.0)), 0.0)
 	if damage > 0.0:
 		_report_neutral_contact_assaulted(enemy)
+		if bool(enemy.get("combat_test_neutral_station", false)) and not enemy.has("aggressor_combat_faction"):
+			enemy["aggressor_combat_faction"] = int(projectile.get("faction", ProjectileFaction.PLAYER))
+			enemy["hostile_to_player"] = int(enemy["aggressor_combat_faction"]) == ProjectileFaction.PLAYER
+		if bool(enemy.get("stationary", false)):
+			_cancel_enemy_docking_clearance(enemy)
 	var shield_damage := damage * maxf(
 		float(projectile.get("shield_damage_multiplier", 1.0)),
 		0.0
 	)
-	var absorbed := minf(float(enemy["shield"]), shield_damage)
-	enemy["shield"] = float(enemy["shield"]) - absorbed
+	_ensure_enemy_shields(enemy)
+	var direction := impact_world_direction
+	if direction.is_zero_approx():
+		direction = -Vector2(projectile.get("velocity", Vector2.DOWN))
+	var local_direction := direction.rotated(-float(enemy.get("rotation", 0.0)))
+	var facing := posmod(roundi(Vector2.UP.angle_to(local_direction) / (PI * 0.5)), 4)
+	var banks: Dictionary = enemy["shield_banks"]
+	var bank: Dictionary = banks.get(facing, {})
+	var absorbed := minf(float(bank.get("current", 0.0)), shield_damage)
+	if not bank.is_empty() and shield_damage > 0.0:
+		bank["current"] = float(bank["current"]) - absorbed
+		var delay := shield_break_recovery_delay if absorbed > 0.0 and float(bank["current"]) <= 0.0 else shield_hit_recovery_delay
+		bank["recovery_delay"] = maxf(float(bank.get("recovery_delay", 0.0)), delay)
+	_sync_enemy_shields(enemy)
 	var remaining_base_damage := damage
 	if shield_damage > 0.0:
 		remaining_base_damage *= (shield_damage - absorbed) / shield_damage
@@ -2113,6 +3065,7 @@ func _apply_damage_to_enemy(
 	enemy["hull"] = maxf(float(enemy["hull"]) - hull_damage, 0.0)
 	if damage > 0.0:
 		enemy["defense_alert"] = true
+		enemy["player_targetable"] = true
 	if not target_room_id.is_empty() and system_damage > 0.0:
 		var room_damage: Dictionary = enemy.get("room_damage", {})
 		room_damage[target_room_id] = (
@@ -2125,6 +3078,23 @@ func _apply_damage_to_enemy(
 		"hull_damage": hull_damage,
 		"system_damage": system_damage,
 	}
+
+
+func _cancel_enemy_docking_clearance(enemy: Dictionary) -> void:
+	if not bool(enemy.get("docking_clearance", false)):
+		return
+	var player := get_tree().get_first_node_in_group("ship_simulation")
+	if is_instance_valid(player) and player.has_method("force_cancel_docking"):
+		player.call("force_cancel_docking", int(enemy.get("id", -1)))
+	if not bool(enemy.get("docking_clearance", false)):
+		return
+	var station_body := enemy.get("physics_body") as RigidBody2D
+	var player_body := enemy.get("docking_player_body") as RigidBody2D
+	if is_instance_valid(player_body) and is_instance_valid(station_body):
+		player_body.remove_collision_exception_with(station_body)
+		station_body.remove_collision_exception_with(player_body)
+	enemy["docking_clearance"] = false
+	enemy.erase("docking_player_body")
 
 
 func _report_neutral_contact_assaulted(enemy: Dictionary) -> void:
@@ -2212,19 +3182,48 @@ func _destroy_player_ship_if_needed(player: Node) -> void:
 	if player_destroyed or not is_instance_valid(player) or not player.call("is_hull_depleted"):
 		return
 	player_destroyed = true
-	var destroyed_position: Vector2 = player.get("ship_position")
+	player_destruction_finalized = false
+	player_destruction_remaining = ship_destruction_sequence_seconds
+	player_destruction_burst_clock = 0.0
+	player_destruction_burst_index = 0
+	player.call("mark_destroyed")
 	var destroyed_body := player.get("physics_body") as RigidBody2D
 	if is_instance_valid(destroyed_body):
-		destroyed_position = destroyed_body.global_position
-		_spawn_ship_destruction_fragments(destroyed_body, player.get("ship_layout"))
-		registered_physics_ships.erase(destroyed_body.get_instance_id())
+		destroyed_body.set_meta("destruction_active", true)
+		if destroyed_body.has_method("set_coast_command"):
+			destroyed_body.call("set_coast_command")
+		if absf(destroyed_body.angular_velocity) < 0.08:
+			destroyed_body.angular_velocity = randf_range(-0.16, 0.16)
+
+
+func _update_player_destruction(player: Node, delta: float) -> void:
+	if player_destruction_finalized or not is_instance_valid(player):
+		return
+	var body := player.get("physics_body") as RigidBody2D
+	player_destruction_remaining = maxf(player_destruction_remaining - delta, 0.0)
+	player_destruction_burst_clock -= delta
+	if player_destruction_burst_clock <= 0.0 and player_destruction_remaining > 0.0:
+		_spawn_ship_destruction_burst(body, player.get("ship_layout") as Resource, player_destruction_burst_index)
+		if player_destruction_burst_index % 2 == 0 and is_instance_valid(body):
+			_play_world_sound(small_explosion_sound, body.global_position, -5.0, 0.08)
+		player_destruction_burst_index += 1
+		player_destruction_burst_clock = ship_destruction_burst_interval
+	if player_destruction_remaining > 0.0:
+		return
+	player_destruction_finalized = true
+	var destroyed_position: Vector2 = player.get("ship_position")
+	if is_instance_valid(body):
+		destroyed_position = body.global_position
+		_spawn_ship_destruction_burst(body, player.get("ship_layout") as Resource, player_destruction_burst_index, true)
+		_spawn_ship_destruction_fragments(body, player.get("ship_layout"))
+		registered_physics_ships.erase(body.get_instance_id())
 	_play_world_sound(large_explosion_sound, destroyed_position, 2.0, 0.025)
-	player.call("mark_destroyed")
 	var destroyed_instance := player.get("capital_ship_instance") as Node
 	if is_instance_valid(destroyed_instance):
 		destroyed_instance.call("destroy")
-	elif is_instance_valid(destroyed_body):
-		destroyed_body.queue_free()
+	elif is_instance_valid(body):
+		body.queue_free()
+	player.set_physics_process(false)
 	player_ship_destroyed.emit(destroyed_position)
 
 
@@ -2245,6 +3244,12 @@ func request_docking_clearance(enemy_id: int, player: Node) -> Dictionary:
 		return {"ok": false, "message": "CONTACT LOST"}
 	if bool(enemy.get("combat_active", true)) or bool(enemy.get("defense_alert", false)):
 		return {"ok": false, "message": "CLEARANCE DENIED • HOSTILE ALERT"}
+	_refresh_enemy_blueprint_operations(enemy)
+	if not bool(enemy.get("station_operational", false)):
+		var power_factor := float(enemy.get("station_power_factor", 0.0))
+		if power_factor < 0.999:
+			return {"ok": false, "message": "CLEARANCE DENIED • STATION POWER OFFLINE"}
+		return {"ok": false, "message": "CLEARANCE DENIED • DOCK CREW UNAVAILABLE"}
 	var reputation := get_tree().get_first_node_in_group("reputation_simulation")
 	var faction_id := StringName(enemy.get("faction_id", &"UNAFFILIATED"))
 	if is_instance_valid(reputation) and reputation.call("get_faction_definition", faction_id) != null:
@@ -2282,6 +3287,7 @@ func request_docking_clearance(enemy_id: int, player: Node) -> Dictionary:
 	var hold_position := final_position + port_outward * float(player.get("docking_alignment_distance"))
 	var station_body := enemy.get("physics_body") as RigidBody2D
 	var player_body := player.get("physics_body") as RigidBody2D
+	pending_docking_releases.erase(enemy_id)
 	if is_instance_valid(station_body):
 		player_body.add_collision_exception_with(station_body)
 		station_body.add_collision_exception_with(player_body)
@@ -2319,9 +3325,50 @@ func complete_undocking(enemy_id: int, player_body: RigidBody2D) -> void:
 	if enemy.is_empty():
 		return
 	var station_body := enemy.get("physics_body") as RigidBody2D
+	if not is_instance_valid(player_body) or not is_instance_valid(station_body):
+		_finalize_docking_release(enemy_id, player_body, station_body)
+		return
+	var station_radius := float(station_body.call("get_hull_bounding_radius")) if station_body.has_method("get_hull_bounding_radius") else 40.0
+	var player_radius := float(player_body.call("get_hull_bounding_radius")) if player_body.has_method("get_hull_bounding_radius") else 20.0
+	var safe_center_distance := station_radius + player_radius + 12.0
+	if player_body.global_position.distance_to(station_body.global_position) >= safe_center_distance:
+		_finalize_docking_release(enemy_id, player_body, station_body)
+		return
+	# The clamp animation is complete, but the hulls still overlap their
+	# conservative collision bounds. Keep the exception and clearance record
+	# alive until the player has physically exited the berth.
+	pending_docking_releases[enemy_id] = {
+		"player_body": player_body,
+		"station_body": station_body,
+		"safe_center_distance": safe_center_distance,
+	}
+
+
+func _update_pending_docking_releases() -> void:
+	for enemy_id_value: Variant in pending_docking_releases.keys().duplicate():
+		var enemy_id := int(enemy_id_value)
+		var release: Dictionary = pending_docking_releases[enemy_id_value]
+		var player_body := release.get("player_body") as RigidBody2D
+		var station_body := release.get("station_body") as RigidBody2D
+		if not is_instance_valid(player_body) or not is_instance_valid(station_body):
+			_finalize_docking_release(enemy_id, player_body, station_body)
+			continue
+		if player_body.global_position.distance_to(station_body.global_position) >= float(release.get("safe_center_distance", 0.0)):
+			_finalize_docking_release(enemy_id, player_body, station_body)
+
+
+func _finalize_docking_release(enemy_id: int, player_body: RigidBody2D, station_body: RigidBody2D) -> void:
+	pending_docking_releases.erase(enemy_id)
 	if is_instance_valid(player_body) and is_instance_valid(station_body):
 		player_body.remove_collision_exception_with(station_body)
 		station_body.remove_collision_exception_with(player_body)
+		# Give physics one settling window after collision is restored. This
+		# prevents a numerical edge contact from becoming a high-energy impact.
+		var pair_key := _collision_pair_key(player_body, station_body)
+		collision_pair_cooldowns[pair_key] = maxf(float(collision_pair_cooldowns.get(pair_key, 0.0)), 1.0)
+	var enemy := _enemy_by_id(enemy_id)
+	if enemy.is_empty():
+		return
 	enemy["docking_clearance"] = false
 	enemy.erase("docking_player_body")
 	enemy["defense_alert"] = false
@@ -2644,6 +3691,15 @@ func set_enemy_player_targetable(enemy_id: int, is_targetable: bool) -> void:
 
 
 func _is_player_targetable(enemy: Dictionary) -> bool:
+	if bool(enemy.get("asteroid_target", false)):
+		var body_value: Variant = enemy.get("physics_body")
+		return (
+			is_instance_valid(body_value)
+			and not (body_value as Node).is_queued_for_deletion()
+			and not bool((body_value as Node).get("is_destroyed"))
+		)
+	if bool(enemy.get("combat_test_ship", false)):
+		return bool(enemy.get("hostile_to_player", false)) or bool(enemy.get("player_targetable", false))
 	return bool(enemy.get("combat_active", true)) or bool(enemy.get("player_targetable", false))
 
 
@@ -2674,10 +3730,35 @@ func _get_room_world_center(layout: Resource, room_id: StringName, ship_position
 	return ship_position
 
 
-func _nearest_enemy(origin: Vector2) -> Dictionary:
+func _player_automatic_target_candidates() -> Array[Dictionary]:
+	var candidates: Array[Dictionary] = []
+	for enemy: Dictionary in enemies:
+		if _is_player_targetable(enemy):
+			candidates.append(enemy)
+	for body_value: Variant in get_tree().get_nodes_in_group("automatic_weapon_targets"):
+		if not is_instance_valid(body_value):
+			continue
+		var body := body_value as RigidBody2D
+		if body == null or body.is_queued_for_deletion() or bool(body.get("is_destroyed")):
+			continue
+		candidates.append({
+			"asteroid_target": true,
+			"player_targetable": true,
+			"position": body.global_position,
+			"rotation": body.global_rotation,
+			"physics_body": body,
+			"display_name": String(body.get_meta("target_display_name", "TARGET ASTEROID")),
+		})
+	return candidates
+
+
+func _nearest_enemy(origin: Vector2, candidates: Array[Dictionary] = []) -> Dictionary:
 	var nearest: Dictionary = {}
 	var nearest_distance := INF
-	for enemy: Dictionary in enemies:
+	var search_targets := candidates
+	if search_targets.is_empty():
+		search_targets = _player_automatic_target_candidates()
+	for enemy: Dictionary in search_targets:
 		if not _is_player_targetable(enemy):
 			continue
 		var distance := origin.distance_squared_to(enemy["position"])
@@ -2687,10 +3768,13 @@ func _nearest_enemy(origin: Vector2) -> Dictionary:
 	return nearest
 
 
-func _nearest_valid_enemy(mount: Dictionary, weapon: Resource) -> Dictionary:
+func _nearest_valid_enemy(mount: Dictionary, weapon: Resource, candidates: Array[Dictionary] = []) -> Dictionary:
 	var nearest: Dictionary = {}
 	var nearest_distance := INF
-	for enemy: Dictionary in enemies:
+	var search_targets := candidates
+	if search_targets.is_empty():
+		search_targets = _player_automatic_target_candidates()
+	for enemy: Dictionary in search_targets:
 		if not _is_player_targetable(enemy):
 			continue
 		if not _target_is_valid(mount, enemy["position"], weapon):
@@ -3155,6 +4239,7 @@ func _on_mount_layout_changed() -> void:
 	# edit invalidates the small geometry cache before the next engagement.
 	mount_geometry_cache.clear()
 	weapon_mount_room_cache.clear()
+	propulsion_profile_cache.clear()
 	call_deferred("_prewarm_tracked_mount_layouts")
 
 

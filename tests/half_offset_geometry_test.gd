@@ -1,13 +1,14 @@
 extends SceneTree
 
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
-const OFFSET_HULL := preload("res://resources/ship_designs/new_hull_4312.tres")
+const SHIP_LAYOUT := preload("res://scripts/resources/ship_layout_resource.gd")
+const ROOM_LAYOUT := preload("res://scripts/resources/room_layout_data.gd")
 const STRUCTURAL_MATERIAL := preload("res://resources/default_structural_material.tres")
 const DOOR_DEFINITION := preload("res://resources/default_door_definition.tres")
 
 
 func _initialize() -> void:
-	var layout: Resource = OFFSET_HULL.duplicate(true)
+	var layout: Resource = _make_offset_fixture()
 	var failures := PackedStringArray()
 	if (layout.get("offset_cells") as Array).is_empty():
 		failures.append("fixture has no horizontal half-offset cells")
@@ -61,6 +62,26 @@ func _initialize() -> void:
 		return
 	print("HALF-OFFSET TEST // PASS // %d PHYSICAL CONNECTIONS // %d DOORS" % [physical_connections, structure.doors.size()])
 	quit()
+
+
+func _make_offset_fixture() -> Resource:
+	# Explicit legacy geometry keeps this regression independent of player saves.
+	# Each shifted cell shares partial edges with two separate neighboring rooms.
+	var layout := SHIP_LAYOUT.new()
+	layout.lattice_version = 1
+	layout.offset_cells = [Vector2i(0, 1)]
+	layout.vertical_offset_cells = [Vector2i(5, 0)]
+	var cells: Array[Vector2i] = [
+		Vector2i(0, 0), Vector2i(1, 0), Vector2i(0, 1),
+		Vector2i(4, 0), Vector2i(4, 1), Vector2i(5, 0),
+	]
+	for index: int in range(cells.size()):
+		var room := ROOM_LAYOUT.new()
+		room.room_id = StringName("offset_room_%d" % index)
+		room.type_name = "CREW_QUARTERS"
+		room.grid_rects = [Rect2i(cells[index], Vector2i.ONE)]
+		layout.rooms.append(room)
+	return layout
 
 
 func _rooms_have_door(structure: ShipStructuralState, first_room: StringName, second_room: StringName) -> bool:

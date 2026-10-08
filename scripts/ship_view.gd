@@ -1,5 +1,8 @@
 extends Control
 
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const SHIP_BUILDER_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
+
 signal station_drydock_requested
 
 const WORLD_ORIGIN := Vector2(5000, 5000)
@@ -26,9 +29,10 @@ const FIRE_MODE_SENTRY := 2
 @export_range(0.0, 2.0, 0.05) var label_hidden_zoom := 0.45
 
 @export_category("Unified Command / Deck Camera")
-## At close range the tactical silhouette resolves into its live deck plan.
+## At close range crew and compartment interaction become readable. The authored
+## ship artwork itself remains visible at every command zoom level.
 @export_range(1.0, 3.0, 0.05) var deck_detail_zoom := 2.0
-## Width of the cross-fade between the exterior command silhouette and live deck.
+## Width of the crew/interaction-detail fade around the close-range threshold.
 @export_range(0.05, 1.0, 0.05) var deck_detail_blend_width := 0.35
 ## Deck framing stays fixed until the ship reaches this inset viewport boundary.
 @export_range(0.0, 0.45, 0.01) var deck_camera_leash_margin := 0.15
@@ -41,6 +45,12 @@ const FIRE_MODE_SENTRY := 2
 @export var direct_fire_blocked_color := Color(1.0, 0.24, 0.18, 0.42)
 @export var direct_fire_disabled_color := Color(0.38, 0.42, 0.45, 0.32)
 
+@export_category("Fleet Combat Rendering")
+## Distant fleet fire remains simulated after this cosmetic budget is full.
+@export_range(32, 1024, 16) var maximum_projectile_visuals := 320
+## Impact damage is never dropped; only overlapping sprite bursts share this budget.
+@export_range(8, 256, 8) var maximum_impact_effects := 72
+
 @export_category("Context Panel CRT Transition")
 ## Time for the bright horizontal CRT line to expand across the panel when opening.
 @export_range(0.02, 0.5, 0.01) var crt_horizontal_time := 0.1
@@ -51,6 +61,7 @@ const FIRE_MODE_SENTRY := 2
 
 @onready var world: Control = %World
 @onready var starfield: Control = %Starfield
+@onready var region_parallax: Control = $RegionParallax
 @onready var ship_visual: Control = %PlaceholderShip
 @onready var shield_visual: Control = %ShieldVisual
 @onready var zoom_controller: Node = %ZoomController
@@ -82,7 +93,6 @@ const FIRE_MODE_SENTRY := 2
 @onready var dev_menu: PanelContainer = %DevMenu
 @onready var enemy_behavior_selector: OptionButton = %EnemyBehaviorSelector
 @onready var enemy_count_label: Label = %EnemyCountLabel
-@onready var sample_ship_selector: OptionButton = %SampleShipSelector
 
 var simulation
 var combat_simulation
@@ -109,6 +119,7 @@ var ship_labels: Array[Label] = []
 var ship_label_alpha := 0.0
 var enemy_visuals: Dictionary = {}
 var projectile_visuals: Dictionary = {}
+var active_impact_effects: Array[Node2D] = []
 var fragment_visuals: Dictionary = {}
 var fighter_visuals: Dictionary = {}
 var grid_pickup_visuals: Dictionary = {}
@@ -142,14 +153,25 @@ var deck_detail_visual: Control
 var deck_detail_mix := 0.0
 var selected_compartment_id: StringName = &""
 var compartment_actions: VBoxContainer
+var compartment_detail: Label
+var compartment_integrity_label: Label
 var compartment_integrity_bar: ProgressBar
+var compartment_output_label: Label
 var compartment_output_bar: ProgressBar
+var compartment_power: RichTextLabel
 var compartment_atmosphere: Label
 var compartment_crew: Label
 var compartment_staffing_button: Button
 var compartment_repair_button: Button
 var compartment_weapon_modes: HBoxContainer
 var compartment_fire_buttons: Array[Button] = []
+var contact_sensor_readout: VBoxContainer
+var contact_vector_label: Label
+var contact_crew_label: Label
+var contact_hull_label: Label
+var contact_hull_bar: ProgressBar
+var contact_shield_label: Label
+var contact_shield_bar: ProgressBar
 
 
 func _ready() -> void:
@@ -171,6 +193,7 @@ func _ready() -> void:
 	contact_target_toggle.toggled.connect(_on_contact_target_toggled)
 	safe_contact_action.pressed.connect(_on_safe_contact_action_pressed)
 	_create_communication_interface()
+	_create_contact_sensor_interface()
 	close_docked_panel_button.pressed.connect(_on_close_docked_panel_pressed)
 	station_drydock_button.pressed.connect(_on_station_drydock_pressed)
 	station_repair_button.pressed.connect(_on_unavailable_station_service_pressed.bind("REPAIR YARD"))
@@ -184,11 +207,9 @@ func _ready() -> void:
 	_set_targeting_doctrine(simulation.targeting_doctrine)
 	dev_menu_toggle.toggled.connect(_on_dev_menu_toggled)
 	%SpawnEnemyButton.pressed.connect(_spawn_enemy)
-	%SpawnSampleShipButton.pressed.connect(_spawn_sample_enemy)
 	%ClearEnemiesButton.pressed.connect(_clear_enemies)
 	enemy_behavior_selector.item_selected.connect(_on_enemy_behavior_selected)
 	_populate_enemy_behaviors()
-	_populate_sample_ships()
 	if is_instance_valid(combat_simulation):
 		combat_simulation.connect("shield_impact_detected", _on_shield_impact_detected)
 		combat_simulation.connect("impact_effect_requested", _on_impact_effect_requested)
@@ -210,9 +231,8 @@ func refresh_player_ship_layout(layout: Resource) -> void:
 		ship_visual.call("set_ship_layout", layout)
 	if is_instance_valid(deck_detail_visual) and deck_detail_visual.has_method("set_ship_layout"):
 		deck_detail_visual.call("set_ship_layout", layout)
-	# Refit can change the visual bounds while both layers are sharing a cross-fade.
-	# Recenter both pivots together so rotation cannot pull the tactical silhouette
-	# away from the live deck representation.
+	# Refit can change the visual bounds. Recenter both pivots together so the
+	# invisible interaction anchor cannot drift away from the authored ship.
 	ship_visual.pivot_offset = ship_visual.size * 0.5
 	if is_instance_valid(deck_detail_visual):
 		deck_detail_visual.pivot_offset = deck_detail_visual.size * 0.5
@@ -234,6 +254,30 @@ func prepare_for_display() -> void:
 	world.pivot_offset = WORLD_ORIGIN
 	world.position = size * 0.5 - WORLD_ORIGIN - simulation.ship_position
 	starfield.call("reset_camera_position", world.position)
+
+
+func get_jump_transition_visual() -> CanvasItem:
+	if (
+		is_instance_valid(deck_detail_visual)
+		and deck_detail_visual.visible
+		and deck_detail_visual.modulate.a > ship_visual.modulate.a
+	):
+		return deck_detail_visual
+	return ship_visual
+
+
+func set_jump_background_motion(offset_y: float, streak_strength: float) -> void:
+	if is_instance_valid(starfield) and starfield.has_method("set_jump_motion"):
+		starfield.call("set_jump_motion", offset_y, streak_strength)
+	if is_instance_valid(region_parallax) and region_parallax.has_method("set_jump_motion"):
+		region_parallax.call("set_jump_motion", offset_y, streak_strength)
+
+
+func clear_jump_background_motion() -> void:
+	if is_instance_valid(starfield) and starfield.has_method("clear_jump_motion"):
+		starfield.call("clear_jump_motion")
+	if is_instance_valid(region_parallax) and region_parallax.has_method("clear_jump_motion"):
+		region_parallax.call("clear_jump_motion")
 
 
 func _rebuild_ship_label_cache() -> void:
@@ -263,11 +307,18 @@ func _create_deck_detail_visual() -> void:
 	deck_detail_visual.set("ship_layout", simulation.get("ship_layout"))
 	world.add_child(deck_detail_visual)
 	world.move_child(deck_detail_visual, ship_visual.get_index() + 1)
+	# The live field used to belong to the tactical silhouette. That silhouette is
+	# now an invisible interaction anchor, so keeping the shield beneath it also
+	# made every standing bank and impact ripple invisible at command zoom.
+	if is_instance_valid(shield_visual):
+		shield_visual.reparent(deck_detail_visual)
 	deck_detail_visual.call("set_deck_detail_visible", true)
+	deck_detail_visual.call("set_ship_layout", simulation.get("ship_layout"))
 	deck_detail_visual.call("set_simulation_identity", 0, 0)
 	deck_detail_visual.add_to_group("player_weapon_muzzle_provider")
-	deck_detail_visual.modulate.a = 0.0
-	deck_detail_visual.process_mode = Node.PROCESS_MODE_DISABLED
+	deck_detail_visual.call("set_crew_detail_alpha", 0.0)
+	deck_detail_visual.modulate.a = 1.0
+	deck_detail_visual.process_mode = Node.PROCESS_MODE_INHERIT
 	_sync_deck_detail_transform()
 
 
@@ -289,13 +340,27 @@ func _create_compartment_interface() -> void:
 	compartment_actions.add_theme_constant_override("separation", 5)
 	content.add_child(compartment_actions)
 
+	compartment_detail = _new_compartment_label(Color(0.42, 0.86, 0.9))
+	compartment_actions.add_child(compartment_detail)
+
+	compartment_integrity_label = _new_compartment_label(Color(0.36, 0.86, 0.58))
+	compartment_actions.add_child(compartment_integrity_label)
 	compartment_integrity_bar = _new_compartment_bar(Color(0.36, 0.86, 0.58))
 	compartment_integrity_bar.tooltip_text = "COMPARTMENT STRUCTURE"
 	compartment_actions.add_child(compartment_integrity_bar)
+	compartment_output_label = _new_compartment_label(Color(0.24, 0.92, 0.94))
+	compartment_actions.add_child(compartment_output_label)
 	compartment_output_bar = _new_compartment_bar(Color(0.24, 0.92, 0.94))
 	compartment_output_bar.tooltip_text = "SYSTEM OUTPUT"
 	compartment_actions.add_child(compartment_output_bar)
 
+	compartment_power = RichTextLabel.new()
+	compartment_power.bbcode_enabled = true
+	compartment_power.fit_content = true
+	compartment_power.scroll_active = false
+	compartment_power.custom_minimum_size.y = 18.0
+	compartment_power.add_theme_font_size_override("normal_font_size", 9)
+	compartment_actions.add_child(compartment_power)
 	compartment_atmosphere = _new_compartment_label(Color(0.45, 0.9, 0.95))
 	compartment_actions.add_child(compartment_atmosphere)
 	compartment_crew = _new_compartment_label(Color(0.5, 1.0, 0.78))
@@ -334,6 +399,48 @@ func _create_compartment_interface() -> void:
 		button.pressed.connect(_on_compartment_fire_mode_pressed.bind(int(mode_data["mode"])))
 		compartment_weapon_modes.add_child(button)
 		compartment_fire_buttons.append(button)
+
+
+func _create_contact_sensor_interface() -> void:
+	if is_instance_valid(contact_sensor_readout):
+		return
+	# Retire the old per-contact targeting doctrine controls. Training-target
+	# arming may still add its one simulation control to this container.
+	contact_target_toggle.visible = false
+	manual_status.visible = false
+	var doctrine_title := combat_contact_actions.get_node_or_null("DoctrineTitle") as Control
+	if is_instance_valid(doctrine_title):
+		doctrine_title.visible = false
+	var doctrine_modes := combat_contact_actions.get_node_or_null("Modes") as Control
+	if is_instance_valid(doctrine_modes):
+		doctrine_modes.visible = false
+	var content := targeting_panel.get_node("Margin/Content") as VBoxContainer
+	contact_sensor_readout = VBoxContainer.new()
+	contact_sensor_readout.name = "ContactSensorReadout"
+	contact_sensor_readout.add_theme_constant_override("separation", 3)
+	content.add_child(contact_sensor_readout)
+	content.move_child(contact_sensor_readout, contact_status.get_index() + 1)
+
+	contact_vector_label = _new_compartment_label(Color(0.48, 0.9, 0.94))
+	contact_vector_label.text = "RANGE — • RELATIVE BEARING — • MOTION —"
+	contact_sensor_readout.add_child(contact_vector_label)
+	contact_crew_label = _new_compartment_label(Color(0.52, 0.95, 0.72))
+	contact_crew_label.text = "LIFE-SIGN TELEMETRY • UNRESOLVED"
+	contact_sensor_readout.add_child(contact_crew_label)
+
+	contact_hull_label = _new_compartment_label(Color(0.58, 0.92, 0.66))
+	contact_hull_label.text = "HULL INTEGRITY"
+	contact_sensor_readout.add_child(contact_hull_label)
+	contact_hull_bar = _new_compartment_bar(Color(0.34, 0.86, 0.55))
+	contact_hull_bar.custom_minimum_size.y = 7.0
+	contact_sensor_readout.add_child(contact_hull_bar)
+
+	contact_shield_label = _new_compartment_label(Color(0.35, 0.82, 1.0))
+	contact_shield_label.text = "SHIELD FIELD"
+	contact_sensor_readout.add_child(contact_shield_label)
+	contact_shield_bar = _new_compartment_bar(Color(0.24, 0.72, 1.0))
+	contact_shield_bar.custom_minimum_size.y = 7.0
+	contact_sensor_readout.add_child(contact_shield_bar)
 
 
 func _new_compartment_bar(fill_color: Color) -> ProgressBar:
@@ -408,8 +515,9 @@ func _update_contact_panel() -> void:
 	if selected_tactical_ship_id < 0 or not is_instance_valid(targeting_panel):
 		return
 	_set_compartment_action_mode(false)
-	_set_context_panel_height(false)
+	contact_sensor_readout.visible = true
 	contact_name.remove_theme_color_override("font_color")
+	contact_status.remove_theme_color_override("font_color")
 	if not is_instance_valid(combat_simulation):
 		_set_contact_action_mode(false, false)
 		contact_panel_title.text = "CONTACT LINK"
@@ -423,9 +531,13 @@ func _update_contact_panel() -> void:
 		contact_name.text = "CONTACT LOST"
 		contact_status.text = "NO ACTIVE TRANSPONDER"
 		return
-	var is_hostile := bool(contact.get("combat_active", true)) or bool(contact.get("defense_alert", false))
+	var is_combat_test_ship := bool(contact.get("combat_test_ship", false))
+	var is_hostile := (
+		bool(contact.get("hostile_to_player", false)) or bool(contact.get("defense_alert", false))
+		if is_combat_test_ship
+		else bool(contact.get("combat_active", true)) or bool(contact.get("defense_alert", false))
+	)
 	var is_training_target := bool(contact.get("training_target", false))
-	var is_authorized := bool(contact.get("player_targetable", is_hostile))
 	var is_station := bool(contact.get("stationary", false)) or not PackedStringArray(contact.get("station_service_tags", PackedStringArray())).is_empty()
 	var faction_id := StringName(contact.get("faction_id", &"UNAFFILIATED"))
 	var faction_report: Dictionary = {}
@@ -440,37 +552,98 @@ func _update_contact_panel() -> void:
 		)
 	var shield_percent := 0
 	var hull_percent := 0
+	var has_shields := float(contact.get("maximum_shield", 0.0)) > 0.0
 	if float(contact.get("maximum_shield", 0.0)) > 0.0:
 		shield_percent = roundi(100.0 * float(contact.get("shield", 0.0)) / float(contact.get("maximum_shield", 1.0)))
 	if float(contact.get("maximum_hull", 0.0)) > 0.0:
 		hull_percent = roundi(100.0 * float(contact.get("hull", 0.0)) / float(contact.get("maximum_hull", 1.0)))
 	contact_name.text = String(contact.get("display_name", "TACTICAL CONTACT")).to_upper()
+	contact_panel_title.text = "%s • TRANSPONDER INTERCEPT" % faction_name
+	var disposition := "NON-BELLIGERENT"
 	if is_hostile:
-		_set_contact_action_mode(true, false, is_training_target)
-		contact_panel_title.text = "%s TRANSPONDER" % faction_name
-		contact_status.text = "%s  •  %s  •  CONTACT HOSTILE • SHIELD %03d%% • HULL %03d%%" % [
-			faction_name,
-			faction_standing,
-			shield_percent,
-			hull_percent,
-		]
-		contact_target_toggle.set_pressed_no_signal(is_authorized)
+		disposition = "WEAPONS HOT • PLAYER HOSTILE"
+	elif is_combat_test_ship and bool(contact.get("combat_active", false)):
+		disposition = "ENGAGED ELSEWHERE • PLAYER NEUTRAL"
+	elif bool(contact.get("defense_alert", false)):
+		disposition = "ALERT POSTURE"
+	contact_status.text = "%s • %s" % [faction_standing, disposition]
+	if is_station:
+		contact_status.text += (
+			" • POWERED / MANNED"
+			if bool(contact.get("station_operational", false))
+			else " • STATION SERVICES OFFLINE"
+		)
+	_update_contact_sensor_telemetry(contact, hull_percent, shield_percent, has_shields)
+	if is_hostile:
+		# Hostile contacts are a sensor readout only. Fire control is handled by
+		# the player's direct-control scheme, not this inspection panel.
+		_set_contact_action_mode(is_training_target, false, is_training_target)
+		_set_context_panel_height(false, is_training_target)
 		if is_training_target:
 			contact_panel_title.text = "PROVING RANGE LINK"
-			contact_status.text = "TRAINING TARGET ARMED • MOVEMENT LIVE • WEAPONS LIVE"
+			contact_status.text = "SIMULATION CONTACT • MOVEMENT LIVE • WEAPONS LIVE"
 	else:
-		_set_contact_action_mode(false, true, is_training_target)
-		contact_panel_title.text = "%s STATION LINK" % faction_name if is_station else "%s TRANSPONDER" % faction_name
-		contact_status.text = "%s  •  %s • SHIELD %03d%% • HULL %03d%%" % [
-			faction_name,
-			faction_standing,
-			shield_percent,
-			hull_percent,
-		]
-		_configure_safe_contact_action(is_station, is_training_target)
+		var show_contact_channels := not is_combat_test_ship or is_training_target
+		_set_contact_action_mode(false, show_contact_channels, is_training_target)
+		_set_context_panel_height(false, show_contact_channels)
+		if show_contact_channels:
+			_configure_safe_contact_action(is_station, is_training_target)
+			if is_station and not bool(contact.get("station_operational", false)):
+				safe_contact_action.disabled = true
+				safe_contact_feedback.text = (
+					"REACTOR NETWORK OFFLINE"
+					if float(contact.get("station_power_factor", 0.0)) < 0.999
+					else "DOCK CREW UNAVAILABLE"
+				)
 		if is_training_target:
 			contact_panel_title.text = "PROVING RANGE LINK"
-			contact_status.text = "TRAINING TARGET SAFE • DRIVE LOCKED • WEAPONS COLD"
+			contact_status.text = "SIMULATION CONTACT • DRIVE LOCKED • WEAPONS COLD"
+
+
+func _update_contact_sensor_telemetry(
+	contact: Dictionary,
+	hull_percent: int,
+	shield_percent: int,
+	has_shields: bool
+) -> void:
+	var contact_position := Vector2(contact.get("position", simulation.ship_position))
+	var relative_position := contact_position - Vector2(simulation.ship_position)
+	var range_to_contact := relative_position.length()
+	var local_bearing := relative_position.rotated(-float(simulation.ship_rotation))
+	var bearing_degrees := wrapf(rad_to_deg(Vector2.UP.angle_to(local_bearing)), 0.0, 360.0)
+	var player_velocity := Vector2.ZERO
+	var player_body := simulation.get("physics_body") as RigidBody2D
+	if is_instance_valid(player_body):
+		player_velocity = player_body.linear_velocity
+	var relative_velocity := Vector2(contact.get("velocity", Vector2.ZERO)) - player_velocity
+	var closing_speed := 0.0
+	if not relative_position.is_zero_approx():
+		closing_speed = -relative_velocity.dot(relative_position.normalized())
+	var motion_label := "STEADY"
+	if closing_speed > 0.5:
+		motion_label = "CLOSING %.1f" % closing_speed
+	elif closing_speed < -0.5:
+		motion_label = "OPENING %.1f" % absf(closing_speed)
+	contact_vector_label.text = "RANGE %05d • REL BEARING %03d° • %s" % [
+		roundi(range_to_contact),
+		roundi(bearing_degrees),
+		motion_label,
+	]
+	var crew_count := int(contact.get("crew_count", -1))
+	var crew_capacity := int(contact.get("crew_capacity", -1))
+	if crew_count >= 0 and crew_capacity >= 0:
+		contact_crew_label.text = "PERSONNEL REGISTER • CURRENT CREW %d • MAX CREW %d" % [crew_count, crew_capacity]
+	else:
+		contact_crew_label.text = "LIFE SIGNS • NO RELIABLE ROSTER RETURN"
+	contact_hull_label.text = "HULL INTEGRITY • %03d%%" % hull_percent
+	contact_hull_bar.value = hull_percent
+	contact_shield_label.text = (
+		"SHIELD FIELD • %03d%%" % shield_percent
+		if has_shields
+		else "SHIELD EMITTERS • NOT DETECTED"
+	)
+	contact_shield_bar.visible = has_shields
+	contact_shield_bar.value = shield_percent
 
 
 func _update_compartment_panel() -> void:
@@ -482,26 +655,55 @@ func _update_compartment_panel() -> void:
 		return
 	_set_contact_action_mode(false, false)
 	_set_compartment_action_mode(true)
-	_set_context_panel_height(true)
+	contact_sensor_readout.visible = false
 	contact_name.remove_theme_color_override("font_color")
-	contact_panel_title.text = "COMPARTMENT LINK"
+	var room_type := String(room.get("type_name", "")).to_upper()
+	var is_module := room_type in ["PROPULSION", "WEAPONS", "SHIELDS", "HANGAR"]
+	contact_panel_title.text = "MODULE CONTROL" if is_module else "COMPARTMENT STATUS"
 	contact_name.text = String(room.get("name", "SHIP SYSTEM")).to_upper()
 	var health := float(simulation.call("get_room_health_percentage", selected_compartment_id))
 	var efficiency := float(simulation.call("get_room_efficiency", selected_compartment_id))
-	var state := "NOMINAL"
-	if health <= 0.5:
+	var produces_output := bool(room.get("produces_output", false))
+	var state := "READY"
+	if health <= 0.5 or (produces_output and efficiency <= 0.01):
 		state = "OFFLINE"
-	elif health < 70.0 or (bool(room.get("produces_output", false)) and efficiency < 0.5):
-		state = "DEGRADED"
+	elif health < 70.0 or (produces_output and efficiency < 0.995):
+		state = "LIMITED • %d%%" % roundi(efficiency * 100.0)
+	elif produces_output:
+		state = "FULL OUTPUT"
 	contact_status.text = "%s  •  %s" % [
-		String(simulation.call("get_room_type_name", selected_compartment_id)).replace("_", " "),
+		room_type.replace("_", " "),
 		state,
 	]
+	contact_status.add_theme_color_override("font_color", (
+		Color(1.0, 0.32, 0.22) if state == "OFFLINE" else (
+			Color(1.0, 0.68, 0.24) if state.begins_with("LIMITED") else Color(0.42, 0.96, 0.78)
+		)
+	))
+
+	var room_definition := _player_layout_room(selected_compartment_id)
+	compartment_detail.visible = room_type in ["PROPULSION", "WEAPONS", "SHIELDS"]
+	if compartment_detail.visible:
+		var facing := GRID_GEOMETRY.resolved_module_facing(simulation.get("ship_layout"), room_definition) if room_definition != null else 0
+		var facing_name := _ship_direction_name(facing)
+		match room_type:
+			"PROPULSION":
+				compartment_detail.text = "IMPULSE VECTOR  •  %s" % _ship_direction_name(facing + 2)
+			"WEAPONS":
+				compartment_detail.text = "PRIMARY FIRE ARC  •  %s" % facing_name
+			"SHIELDS":
+				compartment_detail.text = "FIELD ARC  •  %s" % facing_name
 	compartment_integrity_bar.value = health
 	compartment_integrity_bar.tooltip_text = "STRUCTURE  %d%%" % roundi(health)
-	compartment_output_bar.visible = bool(room.get("produces_output", false))
+	compartment_integrity_label.text = "STRUCTURE ALERT  •  %d%%" % roundi(health)
+	compartment_integrity_label.visible = health < 99.5
+	compartment_integrity_bar.visible = health < 99.5
+	compartment_output_label.visible = produces_output
+	compartment_output_label.text = "%s  •  %d%%" % [_compartment_output_name(room_type), roundi(efficiency * 100.0)]
+	compartment_output_bar.visible = produces_output
 	compartment_output_bar.value = efficiency * 100.0
 	compartment_output_bar.tooltip_text = "SYSTEM OUTPUT  %d%%" % roundi(efficiency * 100.0)
+	_update_compartment_power_readout()
 
 	var pressure := 1.0
 	if is_instance_valid(combat_simulation):
@@ -512,32 +714,97 @@ func _update_compartment_panel() -> void:
 		roundi(pressure * 100.0),
 		"SEALED" if pressure >= 0.995 else ("VENTING" if pressure > 0.02 else "VACUUM"),
 	]
+	# A healthy pressure seal is background state.  Surface it only when it needs
+	# the captain's attention, especially for exposed weapon and drive mounts.
+	compartment_atmosphere.visible = pressure < 0.995
 
 	var crew := get_tree().get_first_node_in_group("crew_simulation")
 	if is_instance_valid(crew):
 		var requirements: Vector2i = crew.call("get_room_manning_requirements", selected_compartment_id)
 		var operating := int(crew.call("get_room_staffing", selected_compartment_id))
-		var present := int(crew.call("get_room_present_count", selected_compartment_id))
-		compartment_crew.text = "CREW  %d OPERATING  •  %d PRESENT  •  %d OPTIMAL" % [
-			operating, present, requirements.y,
-		]
+		var ship_stats := SHIP_BUILDER_ANALYZER.analyze(simulation.get("ship_layout"))
+		var eventual_crew_available := int(ship_stats.get("crew_capacity", 0)) >= int(ship_stats.get("optimal_crew", 0))
+		compartment_crew.visible = requirements.y > 0
+		compartment_staffing_button.visible = requirements.y > 0
+		compartment_crew.text = _compartment_crew_readout(requirements.y, operating, eventual_crew_available)
+		compartment_crew.add_theme_color_override("font_color", (
+			Color(0.5, 1.0, 0.78) if operating >= requirements.y else (
+				Color(0.95, 0.7, 0.3) if eventual_crew_available else Color(1.0, 0.3, 0.2)
+			)
+		))
 		compartment_staffing_button.text = "CREW NET  •  %s" % String(
 			crew.call("get_room_staffing_priority_label", selected_compartment_id)
 		).to_upper()
 		compartment_staffing_button.disabled = false
 	else:
+		compartment_crew.visible = true
+		compartment_staffing_button.visible = true
 		compartment_crew.text = "CREW NET  OFFLINE"
 		compartment_staffing_button.text = "CREW NET  OFFLINE"
 		compartment_staffing_button.disabled = true
 	compartment_repair_button.visible = health < 99.5
-	compartment_weapon_modes.visible = String(room.get("type_name", "")) == "WEAPONS"
+	compartment_weapon_modes.visible = room_type == "WEAPONS"
 	if compartment_weapon_modes.visible:
-		var room_definition := _player_layout_room(selected_compartment_id)
 		var fire_mode := FIRE_MODE_LINKED
 		if room_definition != null and room_definition.has_method("get_weapon_fire_mode"):
 			fire_mode = int(room_definition.call("get_weapon_fire_mode", 0))
 		for index: int in range(compartment_fire_buttons.size()):
 			compartment_fire_buttons[index].set_pressed_no_signal(index == fire_mode)
+	_set_context_panel_height(true, compartment_weapon_modes.visible)
+
+
+func _update_compartment_power_readout() -> void:
+	var report: Dictionary = simulation.call("get_power_network_report") if simulation.has_method("get_power_network_report") else {}
+	var requirements: Dictionary = report.get("room_requirements", {})
+	var coverage: Dictionary = report.get("room_coverage", {})
+	var required := int(requirements.get(selected_compartment_id, 0))
+	compartment_power.visible = required > 0
+	if required <= 0:
+		return
+	var supplied := clampf(float(coverage.get(selected_compartment_id, 0.0)), 0.0, float(required))
+	var link_state := "ONLINE" if supplied >= float(required) - 0.001 else (
+		"UNSTABLE" if supplied > 0.001 else "OFFLINE"
+	)
+	var state_color := "#6df5c7" if link_state == "ONLINE" else (
+		"#f2a83d" if link_state == "UNSTABLE" else "#ff4b2b"
+	)
+	compartment_power.text = "[color=#6a9d96]POWER FEED[/color]  %s  [color=%s]%s[/color]" % [
+		POWER_REQUIREMENT_DISPLAY.bbcode(required, supplied), state_color, link_state,
+	]
+
+
+func _compartment_output_name(room_type: String) -> String:
+	match room_type:
+		"PROPULSION":
+			return "AVAILABLE THRUST"
+		"WEAPONS":
+			return "WEAPON READINESS"
+		"SHIELDS":
+			return "FIELD OUTPUT"
+		"POWER", "REACTOR", "ENGINE":
+			return "REACTOR OUTPUT"
+	return "SYSTEM OUTPUT"
+
+
+func _compartment_crew_readout(required_crew: int, operating_crew: int, eventual_crew_available: bool) -> String:
+	var required := maxi(required_crew, 0)
+	var operating := clampi(operating_crew, 0, required)
+	if operating >= required:
+		return "CREW WATCH  •  FULL  (%d/%d)" % [operating, required]
+	if eventual_crew_available:
+		return "CREW WATCH  •  EN ROUTE  (%d/%d)" % [operating, required]
+	return "CREW WATCH  •  BERTH SHORTAGE  (%d/%d)" % [operating, required]
+
+
+func _ship_direction_name(facing_quarters: int) -> String:
+	match posmod(facing_quarters, 4):
+		0:
+			return "FORWARD"
+		1:
+			return "STARBOARD"
+		2:
+			return "AFT"
+	return "PORT"
 
 
 func _set_compartment_action_mode(is_visible: bool) -> void:
@@ -545,8 +812,8 @@ func _set_compartment_action_mode(is_visible: bool) -> void:
 		compartment_actions.visible = is_visible
 
 
-func _set_context_panel_height(is_compartment: bool) -> void:
-	var desired_bottom := 300.0 if is_compartment else 176.0
+func _set_context_panel_height(is_compartment: bool, has_contact_actions: bool = false) -> void:
+	var desired_bottom := (272.0 if has_contact_actions else 238.0) if is_compartment else (330.0 if has_contact_actions else 268.0)
 	if not is_equal_approx(targeting_panel.offset_bottom, desired_bottom):
 		targeting_panel.offset_bottom = desired_bottom
 		targeting_panel.pivot_offset = targeting_panel.size * 0.5
@@ -893,18 +1160,26 @@ func _context_source_to_panel_pivot(global_position: Vector2) -> Vector2:
 func _on_shield_impact_detected(collider: RigidBody2D, point: Vector2, normal: Vector2, strength: float) -> void:
 	var faction := int(collider.get_meta("ship_faction", -1))
 	var target_visual: Control
+	var target_shield: Control
 	if faction == 0:
-		target_visual = ship_visual
+		target_visual = deck_detail_visual if is_instance_valid(deck_detail_visual) else ship_visual
+		target_shield = shield_visual
 	else:
 		target_visual = enemy_visuals.get(int(collider.get_meta("ship_id", -1))) as Control
+		if is_instance_valid(target_visual):
+			target_shield = target_visual.get_node_or_null("ShieldVisual") as Control
 	if not is_instance_valid(target_visual):
 		return
-	var target_shield := target_visual.get_node_or_null("ShieldVisual") as Control
 	if not is_instance_valid(target_shield):
 		return
 	var canvas_point := WORLD_ORIGIN + point
 	var local_point := target_shield.get_global_transform_with_canvas().affine_inverse() * canvas_point
-	var local_normal := normal.rotated(-target_visual.rotation)
+	# Choose the visual bank from the actual local impact position. Physics
+	# contact normals can be reversed by shape ordering, which previously made a
+	# bow impact reverberate the shield line at the stern.
+	var local_normal := (local_point - target_shield.size * 0.5).normalized()
+	if local_normal.is_zero_approx():
+		local_normal = normal.rotated(-target_visual.rotation)
 	target_shield.call("show_impact", local_point, local_normal, strength)
 
 
@@ -917,11 +1192,22 @@ func _on_impact_effect_requested(
 ) -> void:
 	if not is_instance_valid(world):
 		return
+	for index: int in range(active_impact_effects.size() - 1, -1, -1):
+		if not is_instance_valid(active_impact_effects[index]):
+			active_impact_effects.remove_at(index)
+	if active_impact_effects.size() >= maximum_impact_effects:
+		return
 	var effect_scene := impact_scene if impact_scene != null else IMPACT_SPRITE_BURST_SCENE
 	var effect := effect_scene.instantiate() as Node2D
 	world.add_child(effect)
+	active_impact_effects.append(effect)
+	effect.tree_exited.connect(_on_impact_effect_exited.bind(effect))
 	effect.position = WORLD_ORIGIN + point
 	effect.call("configure", normal, impact_color, 1.0)
+
+
+func _on_impact_effect_exited(effect: Node2D) -> void:
+	active_impact_effects.erase(effect)
 
 
 func _on_player_ship_destroyed(_world_position: Vector2) -> void:
@@ -962,18 +1248,18 @@ func _process(delta: float) -> void:
 		command_zoom
 	)
 	if ship_visual.has_method("set_deck_detail_visible"):
-		# The command silhouette participates only in the transition. Once room art
-		# is fully readable it must disappear completely; otherwise its solid hull
-		# shows through authored transparent apertures and adds a second gray rim.
+		# Keep the legacy command silhouette as the stable interaction/transform
+		# anchor, but never paint it over the authored ship artwork.
 		ship_visual.call("set_deck_detail_visible", false)
-	ship_visual.modulate.a = 1.0 - deck_detail_mix
+	ship_visual.modulate.a = 0.0
 	if is_instance_valid(deck_detail_visual):
-		var deck_layer_active := ship_visual.visible and deck_detail_mix > 0.001
+		var deck_layer_active := ship_visual.visible
 		deck_detail_visual.visible = deck_layer_active
 		deck_detail_visual.process_mode = (
 			Node.PROCESS_MODE_INHERIT if deck_layer_active else Node.PROCESS_MODE_DISABLED
 		)
-		deck_detail_visual.modulate.a = deck_detail_mix
+		deck_detail_visual.modulate.a = 1.0
+		deck_detail_visual.call("set_crew_detail_alpha", deck_detail_mix)
 		deck_detail_visual.call("set_simulation_identity", 0, 0)
 		_sync_deck_detail_transform()
 	if selected_compartment_id != &"" and deck_detail_mix < 0.45:
@@ -1209,6 +1495,10 @@ func _set_flight_destination_indicator(
 
 
 func _input(event: InputEvent) -> void:
+	var wheel := get_node_or_null("WeaponsHUD")
+	if wheel != null and wheel.call("handle_input", event):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventKey:
 		if event.keycode == KEY_F and not event.echo:
 			_set_direct_fire_active(event.pressed)
@@ -1806,17 +2096,6 @@ func _populate_enemy_behaviors() -> void:
 	enemy_behavior_selector.select(combat_simulation.default_behavior)
 
 
-func _populate_sample_ships() -> void:
-	sample_ship_selector.clear()
-	for definition: Resource in combat_simulation.sample_ship_definitions:
-		sample_ship_selector.add_item(String(definition.get("display_name")))
-
-
-func _spawn_sample_enemy() -> void:
-	combat_simulation.spawn_sample_enemy(sample_ship_selector.selected)
-	_sync_enemy_visuals()
-
-
 func _spawn_enemy() -> void:
 	combat_simulation.spawn_enemy()
 	_sync_enemy_visuals()
@@ -1845,9 +2124,7 @@ func _sync_enemy_visuals() -> void:
 			if is_instance_valid(ship_instance) and ship_instance.has_method("create_tactical_visual"):
 				new_visual = ship_instance.call("create_tactical_visual", ENEMY_VISUAL_SCENE)
 			else:
-				var exterior_scene: PackedScene = enemy.get("tactical_exterior_scene", null)
-				var visual_scene: PackedScene = exterior_scene if exterior_scene != null else ENEMY_VISUAL_SCENE
-				new_visual = visual_scene.instantiate() as Control
+				new_visual = ENEMY_VISUAL_SCENE.instantiate() as Control
 				new_visual.call("set_ship_layout", enemy.get("layout", simulation.ship_layout))
 				new_visual.modulate = enemy.get("tactical_tint", Color(1.0, 0.68, 0.68, 1.0))
 			var is_combat_active := bool(enemy.get("combat_active", true))
@@ -1859,7 +2136,7 @@ func _sync_enemy_visuals() -> void:
 			new_visual.pivot_offset = new_visual.size * 0.5
 			var new_shield := new_visual.get_node_or_null("ShieldVisual")
 			if new_shield != null:
-				new_shield.visible = is_combat_active
+				new_shield.visible = float(enemy.get("maximum_shield", 0.0)) > 0.0
 			enemy_visuals[enemy_id] = new_visual
 		var visual := enemy_visuals[enemy_id] as Control
 		var rendered_position: Vector2 = (enemy["previous_position"] as Vector2).lerp(enemy["position"], interpolation)
@@ -1869,7 +2146,7 @@ func _sync_enemy_visuals() -> void:
 		visual.call("set_simulation_identity", 1, enemy_id)
 		_apply_propulsion_visual_command(visual, enemy.get("physics_body") as RigidBody2D)
 		var enemy_shield := visual.get_node_or_null("ShieldVisual")
-		if enemy_shield != null and bool(enemy.get("combat_active", true)):
+		if enemy_shield != null and float(enemy.get("maximum_shield", 0.0)) > 0.0:
 			enemy_shield.call(
 				"set_shield_banks",
 				_enemy_shield_bank_report(enemy),
@@ -1908,6 +2185,8 @@ func _sync_projectile_visuals() -> void:
 		var projectile_id: int = projectile["id"]
 		active_projectile_ids[projectile_id] = true
 		if not projectile_visuals.has(projectile_id):
+			if projectile_visuals.size() >= maximum_projectile_visuals:
+				continue
 			var visual_scene: PackedScene = projectile["visual_scene"]
 			if visual_scene == null:
 				continue
@@ -2044,6 +2323,8 @@ func _update_shield_visual() -> void:
 
 
 func _enemy_shield_bank_report(enemy: Dictionary) -> Dictionary:
+	if enemy.has("shield_banks"):
+		return enemy["shield_banks"]
 	var report: Dictionary = {}
 	var layout := enemy.get("layout") as Resource
 	var maximum := float(enemy.get("maximum_shield", 0.0))

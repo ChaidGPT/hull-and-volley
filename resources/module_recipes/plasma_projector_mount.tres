@@ -12,6 +12,7 @@ display_name = "PLASMA PROJECTOR"
 description = "A compact high-energy projector with severe power and crew demands."
 family = 0
 footprint = ExtResource("2_footprint")
+required_reactor_fields = 2
 power_draw = 2.0
 minimum_crew = 4
 optimal_crew = 7

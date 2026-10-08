@@ -3,6 +3,7 @@ extends RefCounted
 
 const BASE_LAYOUT := preload("res://resources/ship_designs/barebones_starter.tres")
 const SHIP_BUILDER_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
+const GRID_INVENTORY_CATALOG := preload("res://scripts/grid_inventory_catalog.gd")
 
 const PROFILE_ORDER := [&"INTERCEPTOR", &"WARDEN", &"RAIDER"]
 ## The escape-hangar pool is intentionally smaller than the Forge catalog.
@@ -15,6 +16,95 @@ const CALLSIGNS := [
 	"EMBER", "KITE", "MONGREL", "LATCHKEY", "SUNDOG", "VAGRANT",
 	"NEEDLE", "GHOSTLIGHT", "RUSTWING", "JACKAL", "CINDER", "WAYWARD",
 ]
+
+const VISUAL_READY_DRAFT_POOL := [
+	"WEAPON:explosive_cannon_mount",
+	"WEAPON:laser_emitter_mount",
+	"SHIELDS",
+	"PROPULSION",
+	"POWER",
+	"CREW_QUARTERS",
+]
+
+
+func generate_draft_rounds(random_seed: int = 0) -> Array[Dictionary]:
+	var random := RandomNumberGenerator.new()
+	if random_seed == 0:
+		random.randomize()
+	else:
+		random.seed = random_seed
+	var specialization_pool := VISUAL_READY_DRAFT_POOL.duplicate()
+	_shuffle(specialization_pool, random)
+	return [
+		{
+			"title": "WEAPONS LOCKER",
+			"warning": "SELECT ONE FIRE-CONTROL PACKAGE • THE OTHER WILL BE PURGED",
+			"options": [
+				_draft_option("WEAPON:explosive_cannon_mount", "HEAVY SHELLS • IMPACT DAMAGE"),
+				_draft_option("WEAPON:laser_emitter_mount", "PRECISION BEAM • RAPID RESPONSE"),
+			],
+		},
+		{
+			"title": "EXTERIOR SYSTEMS RACK",
+			"warning": "SELECT ONE SURVIVAL SYSTEM • THE OTHER WILL BE ABANDONED",
+			"options": [
+				_draft_option("SHIELDS", "DIRECTIONAL PROTECTION • MUST FACE OUTBOARD"),
+				_draft_option("PROPULSION", "ADDITIONAL THRUST • DIRECTION SET BY PLACEMENT"),
+			],
+		},
+		{
+			"title": "LAST OPEN CARGO CRADLE",
+			"warning": "SELECT ONE FINAL GRID • LOCKDOWN IS CLOSING",
+			"options": [
+				_draft_option(String(specialization_pool[0]), "FINAL SALVAGE ALLOCATION"),
+				_draft_option(String(specialization_pool[1]), "FINAL SALVAGE ALLOCATION"),
+			],
+		},
+	]
+
+
+func _draft_option(inventory_key: String, role_text: String) -> Dictionary:
+	var descriptor := GRID_INVENTORY_CATALOG.describe(BASE_LAYOUT, inventory_key)
+	return {
+		"inventory_key": inventory_key,
+		"name": String(descriptor.get("display_name", inventory_key)).to_upper(),
+		"role": role_text,
+		"descriptor": descriptor,
+		"preview_layout": _draft_preview_layout(inventory_key, descriptor),
+	}
+
+
+func _draft_preview_layout(inventory_key: String, descriptor: Dictionary) -> Resource:
+	var layout: Resource = BASE_LAYOUT.duplicate(true)
+	layout.set("design_name", String(descriptor.get("display_name", "SALVAGE GRID")))
+	layout.set("lattice_version", 2)
+	layout.set("build_origin", Vector2i.ZERO)
+	layout.set("columns", 6)
+	layout.set("rows", 6)
+	var rooms: Array[Resource] = []
+	layout.set("rooms", rooms)
+	var room_type := String(descriptor.get("room_type", inventory_key))
+	var footprint := Vector2i(descriptor.get("footprint", Vector2i.ONE))
+	var facing := 0 if room_type in ["WEAPONS", "SHIELDS"] else (2 if room_type == "PROPULSION" else -1)
+	var recipe := descriptor.get("recipe") as Resource
+	var weapon := recipe.get("payload_resource") as Resource if recipe != null else null
+	_add_room(
+		layout,
+		rooms,
+		room_type,
+		Rect2i(Vector2i(2, 2), footprint),
+		facing,
+		weapon,
+		String(descriptor.get("display_name", inventory_key))
+	)
+	if recipe != null and not rooms.is_empty():
+		var room := rooms.back() as Resource
+		room.set("module_recipe", recipe)
+		room.set("minimum_crew", int(recipe.get("minimum_crew")))
+		room.set("optimal_crew", int(recipe.get("optimal_crew")))
+		room.set("maximum_health", float(recipe.get("maximum_health")))
+	layout.set("rooms", rooms)
+	return layout
 
 
 func generate_candidates(count: int = 3, random_seed: int = 0) -> Array[Dictionary]:

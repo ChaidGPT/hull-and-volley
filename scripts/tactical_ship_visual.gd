@@ -5,6 +5,7 @@ const CANVAS_PADDING := Vector2(10, 22)
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
 const WEAPON_MOUNT_SOCKET := preload("res://scripts/weapon_mount_socket.gd")
 const ROOM_STAFFING_RULES := preload("res://scripts/room_staffing_rules.gd")
+const QUARTER_CONNECTOR_RESOLVER := preload("res://scripts/quarter_connector_resolver.gd")
 const DOOR_VISUALS := preload("res://scripts/door_visuals.gd")
 const CREW_ANIMATION_RANGES := {
 	"Idle": Vector2i(0, 1),
@@ -17,8 +18,11 @@ const CREW_FRAME_DURATION_MS := 100
 const CREW_CLOSE_DETAIL_SCALE := 2.0
 const STANDARD_ROOM_LATTICE_SIZE := Vector2i(2, 2)
 const QUARTER_ROOM_LATTICE_SIZE := Vector2i.ONE
-const QUARTER_ROOM_BASE := preload("res://assets/sprites/interiors/rooms/quarter/base.png")
 const QUARTER_ROOM_CONNECTOR := preload("res://assets/sprites/interiors/rooms/quarter/connector.png")
+const QUARTER_ROOM_CONNECTOR_STRAIGHT := preload("res://assets/sprites/interiors/rooms/quarter/connector_straight.png")
+const QUARTER_ROOM_CONNECTOR_CORNER := preload("res://assets/sprites/interiors/rooms/quarter/connector_corner.png")
+const QUARTER_THRUSTER_OVERLAY := preload("res://assets/sprites/interiors/rooms/quarter/overlays/thruster.png")
+const QUARTER_DIRECTIONAL_SHIELD_OVERLAY := preload("res://assets/sprites/interiors/rooms/quarter/overlays/directional_shield.png")
 const STANDARD_ROOM_FLOOR := preload("res://assets/sprites/interiors/rooms/standard/masks/floor.png")
 const STANDARD_CREW_QUARTERS_OVERLAY := preload("res://assets/sprites/interiors/rooms/standard/overlays/crew_quarters.png")
 const STANDARD_BRIDGE_OVERLAY := preload("res://assets/sprites/interiors/rooms/standard/overlays/bridge.png")
@@ -124,12 +128,16 @@ var hovered_room_id: StringName = &""
 var simulation_faction := 0
 var simulation_ship_id := 0
 var low_detail_mode := false
+## Crew are useful close-up detail but become visual noise (and needless sprite
+## animation work) when a complete ship is only a few pixels wide.
+var crew_detail_alpha := 1.0
 var tactical_interest_room_types := PackedStringArray(["DOCKING", "WEAPONS", "HANGAR"])
 var visual_forward_throttle := 0.0
 var visual_brake_throttle := 0.0
 var visual_turn_command := 0.0
 var visual_translation_exhaust := Vector2.ZERO
 var plume_animation_time := 0.0
+var tactical_animation_redraw_clock := 0.0
 var direct_fire_states: Dictionary = {}
 var geometry_cache_signature := 0
 var cached_hull_cells: Dictionary = {}
@@ -159,12 +167,30 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	plume_animation_time += delta
 	_sync_weapon_mount_visuals()
-	if not tactical_hull_only_mode or _has_active_thruster_visuals() or not direct_fire_states.is_empty():
+	var has_animated_drawing := (
+		(not tactical_hull_only_mode and crew_detail_alpha > 0.001)
+		or _has_active_thruster_visuals()
+		or not direct_fire_states.is_empty()
+	)
+	if not has_animated_drawing:
+		tactical_animation_redraw_clock = 0.0
+		return
+	# Godot retains CanvasItem draw commands until queue_redraw() is requested.
+	# Rebuilding an entire authored hull at the display refresh rate made fleet
+	# cost scale with ship count. Fifteen visual updates per second keeps plume
+	# and readiness motion readable while the static hull remains cached between
+	# animation ticks.
+	tactical_animation_redraw_clock += delta
+	if tactical_animation_redraw_clock >= 1.0 / 15.0:
+		tactical_animation_redraw_clock = fmod(tactical_animation_redraw_clock, 1.0 / 15.0)
 		queue_redraw()
 
 
 func _draw() -> void:
 	var hull_cells := _all_occupied_cells()
+	# Exhaust belongs behind the hull and its mounted hardware. Drawing every
+	# active plume first lets the authored nozzle naturally mask the flame base.
+	_draw_active_thruster_plumes(hull_cells)
 	if low_detail_mode:
 		_draw_low_detail()
 		return
@@ -212,6 +238,8 @@ func _draw() -> void:
 					# Authored gun art communicates its facing directly. Keep the cyan
 					# arrow only as a fallback for modules that do not have a sprite.
 					if _room_uses_authored_weapon_mount(mount_room):
+						continue
+					if String(mount_room.get("type_name")) == "PROPULSION" and _room_uses_standard_skin(mount_room):
 						continue
 					_draw_module_facing_indicator(mount_room, hull_cells)
 			else:
@@ -274,9 +302,9 @@ func _draw_standard_room_skins(_hull_cells: Dictionary) -> void:
 			_draw_standard_room_piece(piece_rect, room_id, piece_index, room_owner_by_cell, room_id_by_cell)
 
 
-## Quarter-room source art is an 80px one-cell module. The connector was
-## authored facing west/left; installed modules face outward, so the connector
-## rotates to the opposite quarter and visually meets the rest of the hull.
+## Quarter hardware floats over the hull without the old Base_Quarter plate.
+## The connector remains: it was authored facing west/left and rotates to the
+## inward attachment quarter so the exposed module still meets the hull.
 func _draw_quarter_room_piece(
 	piece_rect: Rect2i,
 	room: Resource,
@@ -284,16 +312,67 @@ func _draw_quarter_room_piece(
 	hull_cells: Dictionary
 ) -> void:
 	var destination := _get_grid_rect(piece_rect)
-	draw_texture_rect(QUARTER_ROOM_BASE, destination, false)
-	var attachment_quarter := _quarter_attachment_quarter(piece_rect, room, piece_index, hull_cells)
-	var connector_rotation := float(posmod(attachment_quarter - 3, 4)) * PI * 0.5
-	draw_set_transform(destination.get_center(), connector_rotation)
+	_draw_quarter_connectors(
+		piece_rect,
+		posmod(_standard_piece_facing(room, piece_index) + 2, 4),
+		hull_cells,
+		destination
+	)
+	var room_type := String(room.get("type_name")).to_upper()
+	var facing := _standard_piece_facing(room, piece_index)
+	if room_type == "PROPULSION":
+		_draw_quarter_oriented_overlay(
+			QUARTER_THRUSTER_OVERLAY,
+			facing,
+			destination
+		)
+	elif room_type in ["SHIELD", "SHIELDS"]:
+		_draw_quarter_oriented_overlay(
+			QUARTER_DIRECTIONAL_SHIELD_OVERLAY,
+			facing,
+			destination
+		)
+
+
+## Every quarter-module overlay is authored facing south on an odd-sized grid.
+## Its middle 16px design cell is centered on Base_Quarter's socket.
+func _draw_quarter_oriented_overlay(
+	texture: Texture2D,
+	facing_quarters: int,
+	destination: Rect2
+) -> void:
+	var rotation := float(posmod(facing_quarters - 2, 4)) * PI * 0.5
+	draw_set_transform(destination.get_center(), rotation)
 	draw_texture_rect(
-		QUARTER_ROOM_CONNECTOR,
+		texture,
 		Rect2(-destination.size * 0.5, destination.size),
 		false
 	)
 	draw_set_transform(Vector2.ZERO, 0.0)
+
+
+func _draw_quarter_connectors(
+	piece_rect: Rect2i,
+	fallback_quarter: int,
+	hull_cells: Dictionary,
+	destination: Rect2
+) -> void:
+	for connector: Dictionary in QUARTER_CONNECTOR_RESOLVER.visual_plan(piece_rect, hull_cells, fallback_quarter):
+		var texture := _quarter_connector_texture(connector.get("kind", &"single"))
+		var rotation := float(connector.get("turns", 0)) * PI * 0.5
+		draw_set_transform(destination.get_center(), rotation)
+		draw_texture_rect(texture, Rect2(-destination.size * 0.5, destination.size), false)
+		draw_set_transform(Vector2.ZERO, 0.0)
+
+
+func _quarter_connector_texture(kind: StringName) -> Texture2D:
+	match kind:
+		&"straight":
+			return QUARTER_ROOM_CONNECTOR_STRAIGHT
+		&"corner":
+			return QUARTER_ROOM_CONNECTOR_CORNER
+		_:
+			return QUARTER_ROOM_CONNECTOR
 
 
 func _quarter_attachment_quarter(
@@ -302,14 +381,40 @@ func _quarter_attachment_quarter(
 	piece_index: int,
 	hull_cells: Dictionary
 ) -> int:
-	var room_cells := _room_cells(room)
+	var quarter_neighbor := -1
 	for quarter: int in range(4):
 		var neighbor := piece_rect.position + GRID_GEOMETRY.quarter_direction(quarter)
-		if hull_cells.has(neighbor) and not room_cells.has(neighbor):
+		if not hull_cells.has(neighbor):
+			continue
+		var neighbor_room := _room_at_layout_cell(neighbor)
+		if neighbor_room != null and not _is_authored_quarter_room(neighbor_room):
 			return quarter
+		if quarter_neighbor < 0:
+			quarter_neighbor = quarter
+	if quarter_neighbor >= 0:
+		return quarter_neighbor
 	# A temporarily detached Forge preview has no neighbor yet. Keep its connector
 	# on the intended inward side until it is placed beside another hull piece.
 	return posmod(_standard_piece_facing(room, piece_index) + 2, 4)
+
+
+func _is_authored_quarter_room(room: Resource) -> bool:
+	if room == null or not ROOM_STAFFING_RULES.is_unmanned_exterior_module(room):
+		return false
+	var rects: Array[Rect2i] = room.get("grid_rects")
+	if rects.is_empty():
+		return false
+	for rect: Rect2i in rects:
+		if rect.size != QUARTER_ROOM_LATTICE_SIZE:
+			return false
+	return true
+
+
+func _room_at_layout_cell(cell: Vector2i) -> Resource:
+	for candidate: Resource in _rooms():
+		if _build_room_cells(candidate).has(cell):
+			return candidate
+	return null
 
 
 func _draw_standard_room_piece(
@@ -787,8 +892,7 @@ func _draw_tactical_system_marker(room: Resource, hull_cells: Dictionary) -> voi
 				var mount_direction := _module_facing_direction(mount_room, mount_cells, hull_cells)
 				_draw_thruster_indicator(
 					mount_cells,
-					mount_direction,
-					_thruster_activity(mount_room, mount_direction)
+					mount_direction
 				)
 		"WEAPONS":
 			for mount_room: Resource in _module_piece_views(room):
@@ -918,6 +1022,14 @@ func set_deck_detail_visible(is_visible: bool) -> void:
 		return
 	tactical_hull_only_mode = next_hull_only
 	_sync_weapon_mount_visuals(true)
+	queue_redraw()
+
+
+func set_crew_detail_alpha(alpha: float) -> void:
+	var next_alpha := clampf(alpha, 0.0, 1.0)
+	if is_equal_approx(crew_detail_alpha, next_alpha):
+		return
+	crew_detail_alpha = next_alpha
 	queue_redraw()
 
 
@@ -1057,6 +1169,7 @@ func set_tactical_interest_room_types(room_types: PackedStringArray) -> void:
 
 
 func set_propulsion_visual_command(command: Dictionary) -> void:
+	var had_active_thrusters := _has_active_thruster_visuals()
 	var next_forward := clampf(float(command.get("forward", 0.0)), 0.0, 1.0)
 	var next_brake := clampf(float(command.get("brake", 0.0)), 0.0, 1.0)
 	var next_turn := clampf(float(command.get("turn", 0.0)), -1.0, 1.0)
@@ -1073,7 +1186,11 @@ func set_propulsion_visual_command(command: Dictionary) -> void:
 	visual_brake_throttle = next_brake
 	visual_turn_command = next_turn
 	visual_translation_exhaust = next_translation_exhaust
-	queue_redraw()
+	# A transition to or from idle must appear immediately. While thrust remains
+	# active, _process() supplies a bounded animation cadence instead of forcing a
+	# full static-hull rebuild for every tiny physics-command adjustment.
+	if had_active_thrusters != _has_active_thruster_visuals():
+		queue_redraw()
 
 
 func clear_propulsion_visual_command() -> void:
@@ -1123,8 +1240,7 @@ func _draw_low_detail() -> void:
 				var mount_direction := _module_facing_direction(mount_room, mount_cells, hull_cells)
 				_draw_thruster_indicator(
 					mount_cells,
-					mount_direction,
-					_thruster_activity(mount_room, mount_direction)
+					mount_direction
 				)
 		elif type_name == "HANGAR":
 			_draw_low_detail_hangar_node(room, hull_cells)
@@ -1265,6 +1381,8 @@ func _draw_direct_fire_state(room: Resource) -> void:
 
 
 func _draw_live_crew() -> void:
+	if crew_detail_alpha <= 0.001:
+		return
 	var crew := get_tree().get_first_node_in_group("crew_simulation")
 	if not is_instance_valid(crew) or crew.get("crew_definition") == null:
 		return
@@ -1280,7 +1398,8 @@ func _draw_live_crew() -> void:
 		var heading: Vector2 = member.get("facing_direction", Vector2.UP)
 		if not _draw_crew_sprite(member, point, heading, definition):
 			var color := base_color.lightened(float(member.get("color_shift", 0.0)) * 0.35)
-			draw_circle(point, 1.9, Color(0.01, 0.02, 0.025, 0.95), true)
+			color.a *= crew_detail_alpha
+			draw_circle(point, 1.9, Color(0.01, 0.02, 0.025, 0.95 * crew_detail_alpha), true)
 			draw_circle(point, 1.2, color, true)
 		_draw_crew_spawn_effect(member, point)
 	var captain: Dictionary = crew.get("captain_member")
@@ -1296,7 +1415,7 @@ func _draw_live_crew() -> void:
 
 func _draw_captain_marker(point: Vector2) -> void:
 	var pulse := 0.78 + sin(float(Time.get_ticks_msec()) * 0.004) * 0.18
-	var color := Color(0.16, 0.78, 1.0, pulse)
+	var color := Color(0.16, 0.78, 1.0, pulse * crew_detail_alpha)
 	draw_arc(point, 2.6, 0.0, TAU, 16, color, 0.65, false)
 	draw_line(point + Vector2(-2.2, 2.8), point + Vector2(0.0, 4.0), color, 0.65, false)
 	draw_line(point + Vector2(0.0, 4.0), point + Vector2(2.2, 2.8), color, 0.65, false)
@@ -1338,7 +1457,12 @@ func _draw_crew_sprite(member: Dictionary, point: Vector2, heading: Vector2, def
 			rest_offset_ratio.y * draw_size.y
 		).rotated(rotation)
 	draw_set_transform(draw_point, rotation)
-	draw_texture_rect_region(sprite_sheet, Rect2(-draw_size * 0.5, draw_size), source_rect)
+	draw_texture_rect_region(
+		sprite_sheet,
+		Rect2(-draw_size * 0.5, draw_size),
+		source_rect,
+		Color(1.0, 1.0, 1.0, crew_detail_alpha)
+	)
 	draw_set_transform(Vector2.ZERO, 0.0)
 	return true
 
@@ -1364,7 +1488,12 @@ func _draw_crew_spawn_effect(member: Dictionary, point: Vector2) -> void:
 		return
 	var duration := maxf(float(member.get("spawn_visual_duration", 1.0)), 0.001)
 	var progress := clampf(1.0 - remaining / duration, 0.0, 1.0)
-	var color := Color(0.28, 1.0, 0.82, clampf(remaining / minf(duration, 0.45), 0.0, 1.0))
+	var color := Color(
+		0.28,
+		1.0,
+		0.82,
+		clampf(remaining / minf(duration, 0.45), 0.0, 1.0) * crew_detail_alpha
+	)
 	draw_arc(point, lerpf(4.0, 2.4, progress), -PI * 0.5, -PI * 0.5 + TAU * progress, 12, color, 0.8, false)
 
 
@@ -1775,7 +1904,7 @@ func _draw_module_facing_indicator(room: Resource, hull_cells: Dictionary) -> vo
 		return
 	var direction := _module_facing_direction(room, room_cells, hull_cells)
 	if room.get("type_name") == "PROPULSION":
-		_draw_thruster_indicator(room_cells, direction, _thruster_activity(room, direction))
+		_draw_thruster_indicator(room_cells, direction)
 		return
 	var center := Vector2.ZERO
 	for cell_value: Variant in room_cells.keys():
@@ -1790,7 +1919,36 @@ func _draw_module_facing_indicator(room: Resource, hull_cells: Dictionary) -> vo
 	draw_line(arrow_tip, arrow_back - side * 2.5, module_facing_indicator_color, module_facing_indicator_width, false)
 
 
-func _draw_thruster_indicator(room_cells: Dictionary, direction: Vector2, activity: float = 0.0) -> void:
+func _draw_thruster_indicator(room_cells: Dictionary, direction: Vector2) -> void:
+	var geometry := _thruster_nozzle_geometry(room_cells, direction)
+	if geometry.is_empty():
+		return
+	direction = geometry["direction"]
+	var side: Vector2 = geometry["side"]
+	var edge_center: Vector2 = geometry["edge_center"]
+	var nozzle_half_size: float = geometry["half_size"]
+	var nozzle_half := side * nozzle_half_size
+	var nozzle_a := edge_center - nozzle_half
+	var nozzle_b := edge_center + nozzle_half
+	var nozzle_tip := edge_center + direction * 4.5
+	# This is ship hardware, not a UI vector: a dark recessed throat with a
+	# restrained amber ignition lip remains readable without the old cyan glow.
+	var nozzle_shadow := Color(0.025, 0.035, 0.035, 1.0)
+	var ignition_lip := Color(0.92, 0.43, 0.12, 0.92)
+	draw_colored_polygon(PackedVector2Array([nozzle_a, nozzle_b, nozzle_tip]), nozzle_shadow)
+	draw_line(nozzle_a, nozzle_b, thruster_indicator_color, module_facing_indicator_width + 1.0, false)
+	draw_line(nozzle_a, nozzle_tip, thruster_indicator_color, module_facing_indicator_width, false)
+	draw_line(nozzle_b, nozzle_tip, thruster_indicator_color, module_facing_indicator_width, false)
+	draw_line(
+		edge_center - side * nozzle_half_size * 0.42,
+		edge_center + side * nozzle_half_size * 0.42,
+		ignition_lip,
+		maxf(module_facing_indicator_width, 1.25),
+		false
+	)
+
+
+func _thruster_nozzle_geometry(room_cells: Dictionary, direction: Vector2) -> Dictionary:
 	var cardinal := Vector2i(roundi(direction.x), roundi(direction.y))
 	if cardinal == Vector2i.ZERO:
 		cardinal = Vector2i.DOWN
@@ -1815,7 +1973,7 @@ func _draw_thruster_indicator(room_cells: Dictionary, direction: Vector2, activi
 			edge_points.append(Vector2(rect.position.x + rect.size.x * 0.25, y))
 			edge_points.append(Vector2(rect.position.x + rect.size.x * 0.75, y))
 	if edge_points.is_empty():
-		return
+		return {}
 	var edge_min := INF
 	var edge_max := -INF
 	var forward_total := 0.0
@@ -1831,45 +1989,72 @@ func _draw_thruster_indicator(room_cells: Dictionary, direction: Vector2, activi
 		+ side * ((edge_min + edge_max) * 0.5)
 	)
 	var nozzle_half_size := maxf(4.0, (edge_max - edge_min) * 0.42)
-	var nozzle_half := side * nozzle_half_size
-	var nozzle_a := edge_center - nozzle_half
-	var nozzle_b := edge_center + nozzle_half
-	var nozzle_tip := edge_center + direction * 4.5
-	# This is ship hardware, not a UI vector: a dark recessed throat with a
-	# restrained amber ignition lip remains readable without the old cyan glow.
-	var nozzle_shadow := Color(0.025, 0.035, 0.035, 1.0)
-	var ignition_lip := Color(0.92, 0.43, 0.12, 0.92)
-	draw_colored_polygon(PackedVector2Array([nozzle_a, nozzle_b, nozzle_tip]), nozzle_shadow)
-	draw_line(nozzle_a, nozzle_b, thruster_indicator_color, module_facing_indicator_width + 1.0, false)
-	draw_line(nozzle_a, nozzle_tip, thruster_indicator_color, module_facing_indicator_width, false)
-	draw_line(nozzle_b, nozzle_tip, thruster_indicator_color, module_facing_indicator_width, false)
-	draw_line(
-		edge_center - side * nozzle_half_size * 0.42,
-		edge_center + side * nozzle_half_size * 0.42,
-		ignition_lip,
-		maxf(module_facing_indicator_width, 1.25),
-		false
-	)
+	return {
+		"direction": direction,
+		"side": side,
+		"edge_center": edge_center,
+		"half_size": nozzle_half_size,
+	}
+
+
+func _draw_active_thruster_plumes(hull_cells: Dictionary) -> void:
+	if not _has_active_thruster_visuals():
+		return
+	for room: Resource in _rooms():
+		if String(room.get("type_name")) != "PROPULSION":
+			continue
+		for mount_room: Resource in _module_piece_views(room):
+			var mount_cells := _build_room_cells(mount_room)
+			var direction := _module_facing_direction(mount_room, mount_cells, hull_cells)
+			var activity := _thruster_activity(mount_room, direction)
+			if activity <= 0.01:
+				continue
+			var quarter_extension := 0.0
+			var rects: Array[Rect2i] = mount_room.get("grid_rects")
+			if rects.size() == 1 and rects[0].size == QUARTER_ROOM_LATTICE_SIZE:
+				# The 3x3 quarter-thruster art reaches beyond its occupied center
+				# cell. Extend the hidden base of the plume through that artwork.
+				quarter_extension = float(CELL_SIZE) * 0.5
+			_draw_thruster_plume(mount_cells, direction, activity, quarter_extension)
+
+
+func _draw_thruster_plume(
+	room_cells: Dictionary,
+	direction: Vector2,
+	activity: float,
+	hidden_base_extension: float = 0.0
+) -> void:
+	var geometry := _thruster_nozzle_geometry(room_cells, direction)
+	if geometry.is_empty():
+		return
+	direction = geometry["direction"]
+	var side: Vector2 = geometry["side"]
+	var edge_center: Vector2 = geometry["edge_center"]
+	var nozzle_half_size: float = geometry["half_size"]
 	if activity <= 0.01:
 		return
 	var flicker := 0.82 + 0.18 * sin(plume_animation_time * 36.0 + edge_center.length() * 0.19)
 	var plume_strength := clampf(activity * flicker, 0.0, 1.0)
-	var plume_length := lerpf(3.0, 14.0, plume_strength) * active_thruster_plume_scale
+	var plume_length := lerpf(3.0, 14.0, plume_strength) * active_thruster_plume_scale + hidden_base_extension
 	var plume_width := lerpf(module_facing_indicator_width + 1.0, module_facing_indicator_width + 4.5, plume_strength)
-	var plume_tip := nozzle_tip + direction * plume_length
-	var plume_mid := nozzle_tip + direction * plume_length * 0.55
+	# Begin at the module edge and let the subsequently drawn authored thruster
+	# conceal the inboard section. The first visible pixel therefore touches the
+	# real nozzle artwork rather than a detached procedural triangle.
+	var plume_origin := edge_center
+	var plume_tip := plume_origin + direction * plume_length
+	var plume_mid := plume_origin + direction * plume_length * 0.55
 	var plume_base_half := side * nozzle_half_size * 0.72
 	var plume_mid_half := side * nozzle_half_size * 0.38
 	var flame_polygon := PackedVector2Array([
-		nozzle_tip - plume_base_half,
-		nozzle_tip + plume_base_half,
+		plume_origin - plume_base_half,
+		plume_origin + plume_base_half,
 		plume_mid + plume_mid_half,
 		plume_tip,
 		plume_mid - plume_mid_half,
 	])
 	draw_colored_polygon(flame_polygon, Color(active_thruster_flame_color, active_thruster_flame_color.a * plume_strength))
 	draw_polyline(flame_polygon + PackedVector2Array([flame_polygon[0]]), Color(thruster_plume_color, thruster_plume_color.a * plume_strength), maxf(plume_width * 0.32, 1.0), false)
-	draw_line(nozzle_tip, nozzle_tip + direction * plume_length * 0.72, Color(active_thruster_core_color, active_thruster_core_color.a * plume_strength), maxf(plume_width * 0.38, 0.8), false)
+	draw_line(plume_origin, plume_origin + direction * plume_length * 0.72, Color(active_thruster_core_color, active_thruster_core_color.a * plume_strength), maxf(plume_width * 0.38, 0.8), false)
 
 
 func _thruster_activity(room: Resource, direction: Vector2) -> float:

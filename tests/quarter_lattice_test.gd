@@ -5,15 +5,25 @@ const ROOM_SCRIPT := preload("res://scripts/resources/room_layout_data.gd")
 const STRUCTURAL_MATERIAL := preload("res://resources/default_structural_material.tres")
 const DOOR_DEFINITION := preload("res://resources/default_door_definition.tres")
 const GRID_GEOMETRY := preload("res://scripts/grid_geometry.gd")
+const QUARTER_CONNECTOR_RESOLVER := preload("res://scripts/quarter_connector_resolver.gd")
+const QUARTER_CONNECTOR := preload("res://assets/sprites/interiors/rooms/quarter/connector.png")
+const QUARTER_THRUSTER := preload("res://assets/sprites/interiors/rooms/quarter/overlays/thruster.png")
+const QUARTER_DIRECTIONAL_SHIELD := preload("res://assets/sprites/interiors/rooms/quarter/overlays/directional_shield.png")
 const LEGACY_STARTER := preload("res://resources/ship_designs/barebones_starter.tres")
 const BUILDER_SCRIPT := preload("res://scripts/ship_builder_screen.gd")
 const BUILDER_ANALYZER := preload("res://scripts/ship_builder_analyzer.gd")
 const LIGHT_BALLISTIC := preload("res://resources/module_recipes/light_ballistic_mount.tres")
 const SETTLEMENT_GRID := preload("res://scripts/settlement_grid.gd")
+const TACTICAL_SHIP_VISUAL := preload("res://scripts/tactical_ship_visual.gd")
 
 
 func _initialize() -> void:
 	var failures := PackedStringArray()
+	if QUARTER_CONNECTOR.get_size() != Vector2(80.0, 80.0):
+		failures.append("quarter connector did not retain its 5x5 authored canvas")
+	for overlay: Texture2D in [QUARTER_THRUSTER, QUARTER_DIRECTIONAL_SHIELD]:
+		if overlay.get_size() != Vector2(48.0, 48.0):
+			failures.append("quarter module did not retain its centered 3x3 authored canvas")
 	var legacy_layout: Resource = LEGACY_STARTER.duplicate(true)
 	if int(legacy_layout.get("lattice_version")) < 2:
 		var legacy_bounds: Rect2i = legacy_layout.call("get_occupied_bounds")
@@ -28,6 +38,8 @@ func _initialize() -> void:
 	var builder: Object = BUILDER_SCRIPT.new()
 	if builder.call("_inventory_piece_footprint", "SHIELDS", null, null) != Vector2i.ONE:
 		failures.append("directional shield was not classified as quarter-grid")
+	if builder.call("_inventory_piece_footprint", "PROPULSION", null, null) != Vector2i.ONE:
+		failures.append("directional thruster was not classified as quarter-grid")
 	if builder.call("_inventory_piece_footprint", "MEDICAL", null, null) != Vector2i(1, 2):
 		failures.append("medical room was not classified as long half-grid")
 	if builder.call("_inventory_piece_footprint", "WEAPONS", null, LIGHT_BALLISTIC) != Vector2i.ONE:
@@ -66,10 +78,41 @@ func _initialize() -> void:
 		failures.append("open quarter-grid position was rejected")
 	if layout.call("can_place_footprint", Vector2i(3, 2), Vector2i.ONE) != false:
 		failures.append("overlapping quarter-grid position was accepted")
+	# When two separate QGs extend from a full room, the inner QG must attach
+	# inward to the ship rather than selecting the outer QG first by direction.
+	var connector_layout: Resource = LAYOUT_SCRIPT.new()
+	connector_layout.set("lattice_version", 2)
+	connector_layout.set("columns", 8)
+	connector_layout.set("rows", 8)
+	var connector_hull := _room(&"connector_hull", "CREW_QUARTERS", Rect2i(2, 2, 2, 2))
+	var inner_qg := _room(&"inner_qg", "PROPULSION", Rect2i(4, 2, 1, 1))
+	var outer_qg := _room(&"outer_qg", "PROPULSION", Rect2i(5, 2, 1, 1))
+	inner_qg.set("module_facing_quarters", 1)
+	outer_qg.set("module_facing_quarters", 1)
+	var connector_rooms: Array[Resource] = [connector_hull, inner_qg, outer_qg]
+	connector_layout.set("rooms", connector_rooms)
+	var connector_cells: Dictionary = GRID_GEOMETRY.layout_cells(connector_layout)
+	var inner_plan: Array[Dictionary] = QUARTER_CONNECTOR_RESOLVER.visual_plan(Rect2i(4, 2, 1, 1), connector_cells, 3)
+	if inner_plan.size() != 1 or inner_plan[0].get("kind") != &"straight" or int(inner_plan[0].get("turns", -1)) != 0:
+		failures.append("two-sided QG did not select the horizontal connector layer")
+	var corner_cells := {Vector2i(4, 2): true, Vector2i(3, 2): true, Vector2i(4, 1): true}
+	var corner_plan: Array[Dictionary] = QUARTER_CONNECTOR_RESOLVER.visual_plan(Rect2i(4, 2, 1, 1), corner_cells, 3)
+	if corner_plan.size() != 1 or corner_plan[0].get("kind") != &"corner" or int(corner_plan[0].get("turns", -1)) != 0:
+		failures.append("corner-connected QG did not select the left/up connector layer")
+	var connector_grid: Control = SETTLEMENT_GRID.new()
+	connector_grid.set("ship_layout", connector_layout)
+	if int(connector_grid.call("_quarter_attachment_quarter", Rect2i(4, 2, 1, 1), inner_qg, 1, connector_cells)) != 3:
+		failures.append("deck QG connector preferred another QG over the ship proper")
+	connector_grid.free()
+	var connector_visual: Control = TACTICAL_SHIP_VISUAL.new()
+	connector_visual.set("ship_layout", connector_layout)
+	if int(connector_visual.call("_quarter_attachment_quarter", Rect2i(4, 2, 1, 1), inner_qg, 0, connector_cells)) != 3:
+		failures.append("ship-view QG connector preferred another QG over the ship proper")
+	connector_visual.free()
 	var structure := ShipStructuralState.new()
 	structure.configure(layout, STRUCTURAL_MATERIAL, DOOR_DEFINITION)
-	if structure.get_door_between_cells(Vector2i(3, 2), Vector2i(4, 2)).is_empty():
-		failures.append("quarter weapon has no crew-access door")
+	if not structure.get_door_between_cells(Vector2i(3, 2), Vector2i(4, 2)).is_empty():
+		failures.append("unmanned exterior quarter weapon received a crew-access door")
 	if structure.get_door_between_cells(Vector2i(3, 3), Vector2i(4, 3)).is_empty():
 		failures.append("long medical room has no crew-access door")
 	if not _route_exists(structure, Vector2i(2, 2), Vector2i(4, 4)):
@@ -168,8 +211,8 @@ func _initialize() -> void:
 		var battery_stats: Dictionary = BUILDER_ANALYZER.analyze(battery_layout)
 		if int(battery_stats["weapon_count"]) != 2:
 			failures.append("separate touching weapons are not both counted")
-		if not is_equal_approx(float(battery_stats["energy_demand"]), float(LIGHT_BALLISTIC.get("power_draw")) * 2.0):
-			failures.append("separate touching weapons did not retain independent power draw")
+		if not is_equal_approx(float(battery_stats["energy_demand"]), 2.0):
+			failures.append("separate touching weapons did not retain independent field requirements")
 	merge_builder.free()
 	if not failures.is_empty():
 		for failure: String in failures:

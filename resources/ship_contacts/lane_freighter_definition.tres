@@ -1,0 +1,18 @@
+[gd_resource type="Resource" load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/ship_contact_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/ship_designs/lane_freighter.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/dialogue/combine_freight_operator.tres" id="3"]
+
+[resource]
+script = ExtResource("1")
+ship_id = &"civilian_lane_freighter"
+display_name = "LANE FREIGHTER"
+description = "A lightly protected civilian cargo ship following registered sector transit beacons."
+ship_layout = ExtResource("2")
+tactical_tint = Color(0.48, 0.82, 0.78, 1)
+faction_id = &"CHARTERED_COMBINE"
+dialogue_profile = ExtResource("3")
+default_behavior = 0
+participates_in_combat = false
+tactical_interest_room_types = PackedStringArray("COMMAND", "PROPULSION")

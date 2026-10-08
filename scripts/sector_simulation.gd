@@ -12,7 +12,7 @@ signal safe_radius_changed(radius: float)
 @export var sector_id: StringName = &"FRINGE_01"
 @export var sector_center := Vector2.ZERO
 ## The calm navigable pocket measured from the sector center.
-@export_range(500.0, 5000.0, 50.0) var starting_safe_radius := 2100.0
+@export_range(500.0, 12000.0, 50.0) var starting_safe_radius := 2100.0
 ## The jump route stays locked until all required sector objectives are complete.
 @export var jump_locked := true
 ## The current opening sector is a departure sandbox until authored victory objectives arrive.
@@ -35,7 +35,7 @@ signal safe_radius_changed(radius: float)
 @export var encroachment_enabled := false
 @export_range(0.0, 600.0, 1.0) var encroachment_delay := 90.0
 @export_range(0.0, 100.0, 0.25) var encroachment_units_per_second := 6.0
-@export_range(300.0, 5000.0, 50.0) var minimum_safe_radius := 650.0
+@export_range(300.0, 12000.0, 50.0) var minimum_safe_radius := 650.0
 
 var current_safe_radius := 0.0
 var objectives: Dictionary = {}
@@ -143,7 +143,7 @@ func configure_generated_sector(sector: GeneratedSector) -> void:
 	current_safe_radius = starting_safe_radius
 	hazard_enabled = sector.hazard_enabled
 	jump_locked = true
-	opening_sector_departure_ready = false
+	opening_sector_departure_ready = sector.sector_tags.has("ESCAPE_ENTRY")
 	objectives.clear()
 	elapsed_time = 0.0
 	damage_tick_remaining = 0.0
@@ -152,6 +152,8 @@ func configure_generated_sector(sector: GeneratedSector) -> void:
 	sector_started.emit(sector_id)
 	jump_lock_changed.emit(true)
 	safe_radius_changed.emit(current_safe_radius)
+	if opening_sector_departure_ready:
+		call_deferred("_configure_opening_sector_objectives")
 
 
 func _configure_opening_sector_objectives() -> void:
@@ -164,9 +166,11 @@ func _configure_opening_sector_objectives() -> void:
 	if not is_instance_valid(combat_simulation):
 		return
 	if combat_simulation.has_signal("grid_pickup_collected"):
-		combat_simulation.connect("grid_pickup_collected", _on_opening_grid_recovered)
+		if not combat_simulation.is_connected("grid_pickup_collected", _on_opening_grid_recovered):
+			combat_simulation.connect("grid_pickup_collected", _on_opening_grid_recovered)
 	if combat_simulation.has_signal("training_target_armed"):
-		combat_simulation.connect("training_target_armed", _on_opening_target_armed)
+		if not combat_simulation.is_connected("training_target_armed", _on_opening_target_armed):
+			combat_simulation.connect("training_target_armed", _on_opening_target_armed)
 
 
 func _on_opening_grid_recovered(

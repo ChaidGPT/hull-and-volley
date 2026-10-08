@@ -62,6 +62,7 @@ func _init() -> void:
 		7.0,
 		3.0,
 		1.0,
+		1.0,
 		Vector2.LEFT
 	)
 	var visual_command: Dictionary = physics_body.get_propulsion_visual_command()

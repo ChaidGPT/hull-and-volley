@@ -1,6 +1,8 @@
 class_name JumpDirector
 extends Node
 
+const SECTOR_GENERATOR := preload("res://scripts/sector_generator.gd")
+
 signal routes_generated(routes: Array[Resource])
 signal destination_committed(destination: GeneratedSector)
 
@@ -60,8 +62,7 @@ func generate_opening_sector() -> GeneratedSector:
 	random.seed = base_seed + 7717
 	var opening_archetype := archetype_pool[0] as SectorArchetype
 	var sector := _build_generated_sector(opening_archetype, 1, random, 0)
-	sector.display_name = "MORROW DRIFT"
-	sector.intel_summary = "A thin salvage belt beyond the blacksite patrol envelope."
+	sector.intel_summary = "An unstable salvage pocket beyond the blacksite patrol envelope."
 	sector.danger_rating = mini(sector.danger_rating, 14)
 	sector.sector_tags.append("ESCAPE_ENTRY")
 	sector.intel_lines = PackedStringArray([
@@ -69,6 +70,7 @@ func generate_opening_sector() -> GeneratedSector:
 		"IMPOUND TRANSPONDER TRAIL DECAYING",
 		"LIMITED HOSTILE PRESENCE",
 	])
+	SECTOR_GENERATOR.new().generate_plan(sector, true)
 	return sector
 
 
@@ -140,6 +142,7 @@ func _build_generated_sector(
 		if not modifier.intel_line.is_empty():
 			lines.append(modifier.intel_line.to_upper())
 	sector.intel_lines = lines
+	SECTOR_GENERATOR.new().generate_plan(sector, false)
 	return sector
 
 

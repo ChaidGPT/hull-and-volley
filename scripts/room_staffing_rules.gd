@@ -83,7 +83,7 @@ static func is_unmanned_exterior_module(room: Resource) -> bool:
 		if tags.has("unmanned") and tags.has("external"):
 			return true
 	var type_name := String(room.get("type_name")).to_upper()
-	if type_name not in ["WEAPONS", "SHIELD", "SHIELDS"]:
+	if type_name not in ["PROPULSION", "WEAPONS", "SHIELD", "SHIELDS"]:
 		return false
 	var rects: Array[Rect2i] = room.get("grid_rects")
 	if rects.is_empty():

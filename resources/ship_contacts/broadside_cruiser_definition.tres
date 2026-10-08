@@ -1,0 +1,13 @@
+[gd_resource type="Resource" load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/resources/ship_contact_definition.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/ship_designs/small_ship.tres" id="2"]
+
+[resource]
+script = ExtResource("1")
+ship_id = &"broadside_cruiser"
+display_name = "BROADSIDE CRUISER"
+description = "A Shipyard-built weapons test cruiser assembled from supported grid modules."
+ship_layout = ExtResource("2")
+tactical_tint = Color(1, 0.58, 0.4, 1)
+default_behavior = 2

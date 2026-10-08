@@ -14,6 +14,7 @@ const MEDIUM_ASTEROID_MAXIMUM_RADIUS := 32.0
 
 var world: Control
 var sector_population: Node
+var jump_offset_y := 0.0
 
 
 func _ready() -> void:
@@ -30,6 +31,16 @@ func _process(_delta: float) -> void:
 		sector_population = get_tree().get_first_node_in_group("sector_population")
 	if is_instance_valid(sector_population) and not sector_population.get("special_regions").is_empty():
 		queue_redraw()
+
+
+func set_jump_motion(offset_y: float, _streak_strength: float = 0.0) -> void:
+	jump_offset_y = offset_y
+	queue_redraw()
+
+
+func clear_jump_motion() -> void:
+	jump_offset_y = 0.0
+	queue_redraw()
 
 
 func _draw() -> void:
@@ -158,4 +169,4 @@ func _parallax_screen_point(
 	# the layer change speed when it reaches the clamp and visually bends the
 	# field around the viewport like a lens.
 	var layer_offset := (screen_center - anchor_local) * (1.0 - parallax_strength)
-	return foreground_local + layer_offset
+	return foreground_local + layer_offset + Vector2(0.0, jump_offset_y)

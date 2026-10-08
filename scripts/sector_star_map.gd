@@ -239,10 +239,11 @@ func _draw_sector_decoration(center: Vector2, route: GeneratedSector, hovered: b
 func _draw_environment_field(center: Vector2, route: GeneratedSector, radius: float) -> void:
 	var environment := String(route.environment_type)
 	var color := Color(route.signal_color.r, route.signal_color.g, route.signal_color.b, 0.1)
-	if environment == "ASTEROID_BELT":
-		for index: int in range(9):
+	if environment in ["ASTEROID_BELT", "ASTEROID_FIELD", "SCATTERED_ASTEROIDS"]:
+		var object_count := 9 if environment == "ASTEROID_BELT" else (6 if environment == "ASTEROID_FIELD" else 4)
+		for index: int in range(object_count):
 			var angle := float(index) * 2.39 + animation_clock * (0.08 + float(index % 3) * 0.02)
-			var distance := radius + 11.0 + float((index * 13) % 19)
+			var distance := radius + 11.0 + float((index * 13) % (19 if environment == "ASTEROID_BELT" else 11))
 			var point := center + Vector2.from_angle(angle) * distance
 			draw_circle(point, 1.0 + float(index % 2), color)
 	elif environment == "FLEET_ANCHORAGE":
@@ -263,6 +264,13 @@ func _draw_environment_tick(center: Vector2, route: GeneratedSector, color: Colo
 	if environment == "ASTEROID_BELT":
 		draw_circle(center + Vector2(-4.0, -4.0), 2.0, color)
 		draw_circle(center + Vector2(4.0, 2.0), 1.5, color)
+	elif environment == "ASTEROID_FIELD":
+		draw_circle(center, 5.5, Color(color.r, color.g, color.b, 0.18))
+		draw_circle(center + Vector2(-3.0, 1.0), 1.6, color)
+		draw_circle(center + Vector2(3.0, -2.0), 1.2, color)
+	elif environment == "SCATTERED_ASTEROIDS":
+		draw_circle(center + Vector2(-4.0, -3.0), 1.4, color)
+		draw_circle(center + Vector2(4.0, 3.0), 1.2, color)
 	elif environment == "FLEET_ANCHORAGE":
 		draw_line(center + Vector2(-6.0, 0.0), center + Vector2(6.0, 0.0), color, 1.0)
 		draw_line(center + Vector2(2.0, -3.0), center + Vector2(6.0, 0.0), color, 1.0)

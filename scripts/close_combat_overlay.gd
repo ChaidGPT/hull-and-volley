@@ -13,6 +13,11 @@ var projectile_visuals: Dictionary = {}
 var fragment_visuals: Dictionary = {}
 var shield_impacts: Array[Dictionary] = []
 var connected_combat: Node
+var cached_bounds := Rect2i()
+var cached_geometry_size := Vector2.ZERO
+var cached_ship_center := Vector2.ZERO
+var cached_near_ship_rect := Rect2()
+var geometry_cache_valid := false
 
 
 func configure(host: Control, layout: Resource, origin: Vector2, cell_size: float) -> void:
@@ -20,16 +25,25 @@ func configure(host: Control, layout: Resource, origin: Vector2, cell_size: floa
 	ship_layout = layout
 	canvas_origin = origin
 	view_cell_size = cell_size
+	_invalidate_geometry_cache()
 	set_process(true)
 
 
 func refresh_layout(layout: Resource) -> void:
 	ship_layout = layout
+	_invalidate_geometry_cache()
 
 
 func _process(_delta: float) -> void:
 	if not is_instance_valid(view_host) or ship_layout == null:
 		return
+	# Crew and settlement views remain instanced while command view is active.
+	# CanvasItems do not stop processing when an ancestor is hidden, so without
+	# this guard every hidden overlay scans every projectile in the sector.
+	if not is_visible_in_tree() or not view_host.is_visible_in_tree():
+		_hide_all_visuals()
+		return
+	_refresh_geometry_cache()
 	var combat := get_tree().get_first_node_in_group("combat_simulation")
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
 	if not is_instance_valid(combat) or not is_instance_valid(ship) or not is_instance_valid(ship.physics_body):
@@ -56,6 +70,8 @@ func _ensure_combat_connection(combat: Node) -> void:
 
 
 func _on_shield_impact_detected(collider: RigidBody2D, point: Vector2, normal: Vector2, strength: float) -> void:
+	if not is_visible_in_tree() or not is_instance_valid(view_host) or not view_host.is_visible_in_tree():
+		return
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
 	if not is_instance_valid(ship) or collider != ship.physics_body:
 		return
@@ -75,6 +91,8 @@ func _on_impact_effect_requested(
 	impact_color: Color,
 	impact_scene: PackedScene
 ) -> void:
+	if not is_visible_in_tree() or not is_instance_valid(view_host) or not view_host.is_visible_in_tree():
+		return
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
 	if not is_instance_valid(ship) or collider != ship.physics_body:
 		return
@@ -98,13 +116,11 @@ func _update_shield_impacts(delta: float) -> void:
 func _draw() -> void:
 	if not is_instance_valid(view_host) or ship_layout == null:
 		return
-	var bounds: Rect2i = view_host.call("_bounds")
-	var geometry_size := GRID_GEOMETRY.grid_pixel_size(ship_layout, bounds, view_cell_size)
-	var ship_center := canvas_origin + geometry_size * 0.5
+	_refresh_geometry_cache()
 	for impact: Dictionary in shield_impacts:
 		var life_ratio := clampf(float(impact["age"]) / 0.75, 0.0, 1.0)
 		var strength := float(impact["strength"])
-		var point := ship_center + Vector2(impact["local_point"]) * _scale_ratio()
+		var point := cached_ship_center + Vector2(impact["local_point"]) * _scale_ratio()
 		var normal := Vector2(impact["local_normal"]).normalized()
 		var center := point + normal * (3.0 + life_ratio * 5.0) * _scale_ratio()
 		var color := Color(0.3, 0.95, 1.0, (1.0 - life_ratio) * strength)
@@ -179,15 +195,31 @@ func _sync_fragments(combat: Node, ship_body: RigidBody2D) -> void:
 
 
 func _world_to_view(ship_body: RigidBody2D, world_position: Vector2) -> Vector2:
-	var bounds: Rect2i = view_host.call("_bounds")
-	var geometry_size := GRID_GEOMETRY.grid_pixel_size(ship_layout, bounds, view_cell_size)
-	return canvas_origin + geometry_size * 0.5 + ship_body.to_local(world_position) * _scale_ratio()
+	return cached_ship_center + ship_body.to_local(world_position) * _scale_ratio()
 
 
 func _is_near_ship(view_position: Vector2) -> bool:
-	var bounds: Rect2i = view_host.call("_bounds")
-	var geometry_size := GRID_GEOMETRY.grid_pixel_size(ship_layout, bounds, view_cell_size)
-	return Rect2(canvas_origin - Vector2.ONE * view_cell_size * 2.0, geometry_size + Vector2.ONE * view_cell_size * 4.0).has_point(view_position)
+	return cached_near_ship_rect.has_point(view_position)
+
+
+func _invalidate_geometry_cache() -> void:
+	geometry_cache_valid = false
+
+
+func _refresh_geometry_cache() -> void:
+	if not is_instance_valid(view_host) or ship_layout == null:
+		return
+	var next_bounds: Rect2i = view_host.call("_bounds")
+	if geometry_cache_valid and next_bounds == cached_bounds:
+		return
+	cached_bounds = next_bounds
+	cached_geometry_size = GRID_GEOMETRY.grid_pixel_size(ship_layout, cached_bounds, view_cell_size)
+	cached_ship_center = canvas_origin + cached_geometry_size * 0.5
+	cached_near_ship_rect = Rect2(
+		canvas_origin - Vector2.ONE * view_cell_size * 2.0,
+		cached_geometry_size + Vector2.ONE * view_cell_size * 4.0
+	)
+	geometry_cache_valid = true
 
 
 func _scale_ratio() -> float:

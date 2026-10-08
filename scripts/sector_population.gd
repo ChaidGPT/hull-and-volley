@@ -7,6 +7,12 @@ const MEDIUM_ASTEROID_SCENE := preload("res://scenes/asteroids/asteroid_medium_0
 const LARGE_ASTEROID_SCENE := preload("res://scenes/asteroids/asteroid_large_01.tscn")
 const SMALL_ASTEROID_MAXIMUM_RADIUS := 22.0
 const MEDIUM_ASTEROID_MAXIMUM_RADIUS := 32.0
+const COMBAT_TARGET_REGION_ID := &"COMBAT_TARGET_FIELD"
+const COMBAT_TARGET_FIELD_SEED := 0x71A6E7
+const COMBAT_TARGET_FIELD_RADIUS := 900.0
+const COMBAT_ENVIRONMENT_REGION_ID := &"COMBAT_ENVIRONMENT_FIELD"
+const COMBAT_ENVIRONMENT_SEED := 0xC04BA7
+const COMBAT_ENVIRONMENT_RADIUS := 1250.0
 
 @export_category("Neutral Encounter Pool")
 ## Weighted possibilities available to future procedural sector rolls.
@@ -15,7 +21,6 @@ const MEDIUM_ASTEROID_MAXIMUM_RADIUS := 32.0
 @export_category("Opening Sector")
 @export var populate_opening_sector := true
 @export var mining_outpost_definition: Resource
-@export var bulk_miner_definition: Resource
 @export var freighter_definition: Resource
 
 var special_regions: Array[Resource] = []
@@ -42,6 +47,13 @@ func populate_generated_sector(sector: GeneratedSector) -> void:
 	clear_sector_population()
 	var random := RandomNumberGenerator.new()
 	random.seed = sector.generation_seed
+	if (
+		not sector.environment_regions.is_empty()
+		or not sector.landmarks.is_empty()
+		or not sector.transit_routes.is_empty()
+	):
+		_populate_sector_plan(sector, random)
+		return
 	match sector.environment_type:
 		&"ASTEROID_BELT":
 			_build_generated_asteroid_belt(
@@ -100,11 +112,94 @@ func populate_generated_sector(sector: GeneratedSector) -> void:
 			_build_generated_shipping_lane(random, 540.0)
 
 
+func _populate_sector_plan(sector: GeneratedSector, random: RandomNumberGenerator) -> void:
+	for region_data: Dictionary in sector.environment_regions:
+		_build_planned_asteroid_region(region_data, sector.landmarks)
+	for route: PackedVector2Array in sector.transit_routes:
+		_spawn_planned_shipping_lane(route, random)
+	for landmark: Dictionary in sector.landmarks:
+		var position := Vector2(landmark.get("position", Vector2.ZERO))
+		match StringName(landmark.get("type", &"")):
+			&"STARTER_CACHE":
+				_spawn_starter_grid_cache(position, random.randf_range(-PI, PI))
+			&"TRAINING_RANGE":
+				_spawn_opening_training_range(position, random.randf_range(-PI, PI))
+			&"OUTPOST":
+				_spawn_generated_outpost(position, "%s WAYSTATION" % sector.display_name)
+			&"SALVAGE_SITE":
+				_spawn_generated_salvage(position, random)
+
+
+func _build_planned_asteroid_region(
+	plan: Dictionary,
+	landmarks: Array[Dictionary]
+) -> void:
+	var region := SPECIAL_REGION.new() as SectorSpecialRegion
+	region.region_id = StringName(plan.get("id", &"GENERATED_ASTEROIDS"))
+	region.display_name = String(plan.get("display_name", "CHARTED ASTEROID REGION"))
+	region.center = Vector2(plan.get("center", Vector2.ZERO))
+	region.world_radius = float(plan.get("radius", 800.0))
+	region.generation_seed = int(plan.get("seed", 1))
+	region.far_object_count = int(plan.get("far_count", 72))
+	region.middle_object_count = int(plan.get("middle_count", 32))
+	region.physical_object_count = int(plan.get("physical_count", 8))
+	region.exclusion_center = Vector2(plan.get("exclusion_center", Vector2.ZERO))
+	region.exclusion_radius = float(plan.get("exclusion_radius", 0.0))
+	for landmark: Dictionary in landmarks:
+		var clearance := 700.0 if StringName(landmark.get("type", &"")) == &"OUTPOST" else 420.0
+		region.exclusion_zones.append({
+			"center": Vector2(landmark.get("position", Vector2.ZERO)),
+			"radius": clearance,
+		})
+	region.generate_asteroid_belt()
+	special_regions.append(region)
+	_spawn_physical_asteroids(region)
+
+
+func _spawn_planned_shipping_lane(
+	route: PackedVector2Array,
+	random: RandomNumberGenerator
+) -> void:
+	if route.size() < 2:
+		return
+	shipping_lanes.append({
+		"id": StringName("GENERATED_LANE_%08X" % (abs(random.randi()) % 0x7FFFFFFF)),
+		"display_name": "LONG-RANGE TRANSIT CORRIDOR",
+		"points": route,
+		"color": Color(0.22, 0.72, 0.7, 0.18),
+	})
+	if freighter_definition == null or not is_instance_valid(combat_simulation):
+		return
+	var route_array: Array[Vector2] = []
+	for point: Vector2 in route:
+		route_array.append(point)
+	for index: int in range(2):
+		var contact_route: Array[Vector2] = route_array.duplicate()
+		if index == 1:
+			contact_route.reverse()
+		var forward: Vector2 = contact_route[0].direction_to(contact_route[1])
+		var contact_id: int = combat_simulation.call(
+			"spawn_neutral_contact",
+			freighter_definition,
+			contact_route[0],
+			Vector2.UP.angle_to(forward),
+			["MV FAR SIGNAL", "MV QUIET CURRENT"][index],
+			&"LANE_FREIGHTER",
+			contact_route,
+			true,
+			3.0 + index
+		)
+		if contact_id >= 0:
+			spawned_contact_ids.append(contact_id)
+
+
 func clear_sector_population() -> void:
 	if not is_instance_valid(combat_simulation):
 		combat_simulation = get_tree().get_first_node_in_group("combat_simulation")
 	if is_instance_valid(combat_simulation):
 		combat_simulation.call("clear_enemies")
+		if combat_simulation.has_method("clear_grid_pickups"):
+			combat_simulation.call("clear_grid_pickups")
 	for asteroid: Dictionary in physical_asteroids:
 		var body_value: Variant = asteroid.get("body")
 		if is_instance_valid(body_value):
@@ -113,6 +208,86 @@ func clear_sector_population() -> void:
 	physical_asteroids.clear()
 	shipping_lanes.clear()
 	spawned_contact_ids.clear()
+
+
+func spawn_combat_test_target_field(target_count: int = 40) -> int:
+	clear_combat_test_target_field()
+	var center := Vector2.ZERO
+	var player := get_tree().get_first_node_in_group("ship_simulation")
+	if is_instance_valid(player):
+		center = Vector2(player.get("ship_position"))
+	var region := SPECIAL_REGION.new() as SectorSpecialRegion
+	region.region_id = COMBAT_TARGET_REGION_ID
+	region.display_name = "AUTOMATIC-FIRE TARGET FIELD"
+	region.center = center
+	region.world_radius = COMBAT_TARGET_FIELD_RADIUS
+	region.generation_seed = COMBAT_TARGET_FIELD_SEED
+	region.far_object_count = 180
+	region.middle_object_count = 80
+	region.physical_object_count = clampi(target_count, 1, 40)
+	region.generate_asteroid_belt()
+	region.gameplay_tags.append("GUNNERY_TARGETS")
+	special_regions.append(region)
+	_spawn_physical_asteroids(region, true)
+	var spawned_count := 0
+	for asteroid: Dictionary in physical_asteroids:
+		if StringName(asteroid.get("region_id", &"")) == COMBAT_TARGET_REGION_ID:
+			spawned_count += 1
+	return spawned_count
+
+
+func clear_combat_test_target_field() -> void:
+	for index: int in range(physical_asteroids.size() - 1, -1, -1):
+		var asteroid: Dictionary = physical_asteroids[index]
+		if StringName(asteroid.get("region_id", &"")) != COMBAT_TARGET_REGION_ID:
+			continue
+		var body_value: Variant = asteroid.get("body")
+		if is_instance_valid(body_value):
+			(body_value as RigidBody2D).queue_free()
+		physical_asteroids.remove_at(index)
+	for index: int in range(special_regions.size() - 1, -1, -1):
+		var region := special_regions[index] as SectorSpecialRegion
+		if region != null and region.region_id == COMBAT_TARGET_REGION_ID:
+			special_regions.remove_at(index)
+
+
+func spawn_combat_test_environment(environment: StringName) -> int:
+	clear_combat_test_environment()
+	if environment != &"ASTEROID_FIELD":
+		return 0
+	var center := Vector2.ZERO
+	var player := get_tree().get_first_node_in_group("ship_simulation")
+	if is_instance_valid(player):
+		center = Vector2(player.get("ship_position"))
+	var region := SPECIAL_REGION.new() as SectorSpecialRegion
+	region.region_id = COMBAT_ENVIRONMENT_REGION_ID
+	region.display_name = "COMBAT TEST ASTEROID FIELD"
+	region.center = center
+	region.world_radius = COMBAT_ENVIRONMENT_RADIUS
+	region.generation_seed = COMBAT_ENVIRONMENT_SEED
+	region.far_object_count = 220
+	region.middle_object_count = 100
+	region.physical_object_count = 24
+	region.generate_asteroid_belt()
+	region.gameplay_tags.append("NAVIGATION_HAZARD")
+	special_regions.append(region)
+	_spawn_physical_asteroids(region, false)
+	return 24
+
+
+func clear_combat_test_environment() -> void:
+	for index: int in range(physical_asteroids.size() - 1, -1, -1):
+		var asteroid: Dictionary = physical_asteroids[index]
+		if StringName(asteroid.get("region_id", &"")) != COMBAT_ENVIRONMENT_REGION_ID:
+			continue
+		var body_value: Variant = asteroid.get("body")
+		if is_instance_valid(body_value):
+			(body_value as RigidBody2D).queue_free()
+		physical_asteroids.remove_at(index)
+	for index: int in range(special_regions.size() - 1, -1, -1):
+		var region := special_regions[index] as SectorSpecialRegion
+		if region != null and region.region_id == COMBAT_ENVIRONMENT_REGION_ID:
+			special_regions.remove_at(index)
 
 
 func get_special_region_at_position(world_position: Vector2) -> Resource:
@@ -268,26 +443,35 @@ func _populate_opening_sector() -> void:
 	_spawn_opening_training_range()
 
 
-func _spawn_starter_grid_cache() -> void:
+func _spawn_starter_grid_cache(
+	center: Vector2 = Vector2(-305.0, -90.0),
+	rotation: float = 0.0
+) -> void:
 	# Run loot is intentionally limited to rooms with finished in-world art.
 	# The Forge keeps its complete development catalog.
 	var cache := [
-		{"type": "WEAPON:explosive_cannon_mount", "position": Vector2(-250.0, -65.0)},
-		{"type": "WEAPON:laser_emitter_mount", "position": Vector2(-305.0, -120.0)},
-		{"type": "REACTOR", "position": Vector2(-365.0, -80.0)},
+		{"type": "WEAPON:explosive_cannon_mount", "offset": Vector2(55.0, 25.0)},
+		{"type": "WEAPON:laser_emitter_mount", "offset": Vector2(0.0, -30.0)},
+		{"type": "REACTOR", "offset": Vector2(-60.0, 10.0)},
 	]
 	for index: int in range(cache.size()):
 		var entry: Dictionary = cache[index]
 		combat_simulation.call(
 			"spawn_grid_pickup",
 			String(entry["type"]),
-			Vector2(entry["position"]),
+			center + Vector2(entry["offset"]).rotated(rotation),
 			Vector2(0.0, -2.0).rotated(float(index) * 0.7)
 		)
 
 
-func _spawn_opening_training_range() -> void:
-	var positions := [Vector2(420.0, -190.0), Vector2(680.0, -270.0)]
+func _spawn_opening_training_range(
+	center: Vector2 = Vector2(550.0, -230.0),
+	rotation: float = 0.0
+) -> void:
+	var positions := [
+		center + Vector2(-130.0, 40.0).rotated(rotation),
+		center + Vector2(130.0, -40.0).rotated(rotation),
+	]
 	for index: int in range(2):
 		var target_id: int = combat_simulation.call(
 			"spawn_training_target",
@@ -297,6 +481,22 @@ func _spawn_opening_training_range() -> void:
 		)
 		if target_id >= 0:
 			spawned_contact_ids.append(target_id)
+
+
+func _spawn_generated_salvage(position: Vector2, random: RandomNumberGenerator) -> void:
+	if not is_instance_valid(combat_simulation):
+		return
+	var salvage_types := [
+		"WEAPON:explosive_cannon_mount",
+		"WEAPON:laser_emitter_mount",
+		"REACTOR",
+	]
+	combat_simulation.call(
+		"spawn_grid_pickup",
+		salvage_types[random.randi_range(0, salvage_types.size() - 1)],
+		position,
+		Vector2.RIGHT.rotated(random.randf_range(-PI, PI)) * random.randf_range(0.4, 1.4)
+	)
 
 
 func _build_shipping_lane() -> void:
@@ -392,7 +592,7 @@ func _spawn_generated_outpost(position: Vector2, display_name: String) -> void:
 		spawned_contact_ids.append(contact_id)
 
 
-func _spawn_physical_asteroids(region: SectorSpecialRegion) -> void:
+func _spawn_physical_asteroids(region: SectorSpecialRegion, automatic_weapon_targets := false) -> void:
 	var physics_parent := get_node_or_null("../PhysicsWorld")
 	if not is_instance_valid(physics_parent):
 		push_warning("SectorPopulation could not find PhysicsWorld for physical region objects.")
@@ -409,6 +609,10 @@ func _spawn_physical_asteroids(region: SectorSpecialRegion) -> void:
 			object["color"]
 		)
 		physics_parent.add_child(body)
+		if automatic_weapon_targets:
+			body.add_to_group("automatic_weapon_targets")
+			body.set_meta("automatic_weapon_target", true)
+			body.set_meta("target_display_name", "TARGET ASTEROID %02d" % int(object["id"]))
 		body.destroyed.connect(_on_physical_asteroid_destroyed.bind(region.region_id))
 		body.position = region.center + Vector2(object["offset"])
 		body.rotation = float(object["rotation"])
@@ -421,6 +625,7 @@ func _spawn_physical_asteroids(region: SectorSpecialRegion) -> void:
 			"radius": float(object["radius"]),
 			"silhouette": object["silhouette"],
 			"color": object["color"],
+			"combat_test_target": automatic_weapon_targets,
 		})
 
 

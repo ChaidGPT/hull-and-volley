@@ -10,6 +10,8 @@ const FORGE_INVENTORY_GRID := preload("res://scripts/forge_inventory_grid.gd")
 const FORGE_INVENTORY_PIECE := preload("res://scripts/forge_inventory_piece.gd")
 const SETTLEMENT_GRID := preload("res://scripts/settlement_grid.gd")
 const GRID_INVENTORY_CATALOG := preload("res://scripts/grid_inventory_catalog.gd")
+const POWER_REQUIREMENT_DISPLAY := preload("res://scripts/power_requirement_display.gd")
+const CREW_REQUIREMENT_DISPLAY := preload("res://scripts/crew_requirement_display.gd")
 const FACTION_REPUTATION_ROW := preload("res://scripts/faction_reputation_row.gd")
 const CONTRACT_TERMINAL_PANEL := preload("res://scripts/contract_terminal_panel.gd")
 const RUN_STATE_SCRIPT := preload("res://scripts/run_state.gd")
@@ -20,6 +22,10 @@ const STARTING_SHIP_RANDOMIZER_SCRIPT := preload("res://scripts/starting_ship_ra
 const STARTING_SHIP_TERMINAL_SCRIPT := preload("res://scripts/starting_ship_terminal.gd")
 const RUN_PROLOGUE_TERMINAL_SCRIPT := preload("res://scripts/run_prologue_terminal.gd")
 const CONTROLLER_MENU_CURSOR := preload("res://scripts/controller_menu_cursor.gd")
+const COMBAT_TEST_SETUP_PANEL := preload("res://scripts/combat_test_setup_panel.gd")
+const ESCAPE_KEEL_BLUEPRINT := preload("res://resources/ship_designs/barebones_starter.tres")
+const COMBAT_TEST_BLUEPRINT_DIRECTORY := "res://resources/ship_designs"
+const COMBAT_TEST_FALLBACK_BLUEPRINT_PATH := "res://resources/starting_ship_layout.tres"
 
 const FORGE_TAB_PEEK_WIDTH := 22.0
 const FORGE_TAB_RIGHT_MARGIN := 0.0
@@ -55,7 +61,7 @@ const VIEW_DEPTH := {
 @onready var forge_toggle: Button = %ForgeToggle
 @onready var forge_panel: PanelContainer = %ForgePanel
 @onready var forge_enemy_behavior: OptionButton = %ForgeEnemyBehavior
-@onready var forge_sample_ship: OptionButton = %ForgeSampleShip
+@onready var forge_blueprint_contact: OptionButton = %ForgeBlueprintContact
 @onready var forge_status: Label = %ForgeStatus
 @onready var forge_active_indicator: Button = %ForgeActiveIndicator
 @onready var forge_ship_editor_button: Button = %ForgeShipEditorButton
@@ -106,6 +112,10 @@ var jump_director: JumpDirector
 var sector_jump_terminal: SectorJumpTerminal
 var lightspeed_transition: LightspeedTransition
 var pending_jump_destination: GeneratedSector
+var pending_combat_test_jump := false
+var combat_testing_active := false
+var combat_test_panel: CombatTestSetupPanel
+var combat_test_panel_layer: CanvasLayer
 var forge_tab_tween: Tween
 var forge_tab_hovered := false
 var starting_ship_terminal: StartingShipTerminal
@@ -114,6 +124,7 @@ var selected_starter_candidate: Dictionary = {}
 var run_prologue_terminal: RunPrologueTerminal
 var run_prologue_layer: CanvasLayer
 var run_start_pending := false
+var escape_assembly_pending := false
 var pursuit_alert_layer: CanvasLayer
 var pursuit_alert: Label
 var controller_menu_cursor: Control
@@ -147,7 +158,7 @@ func _ready() -> void:
 	%LogisticsManifestBackButton.pressed.connect(_close_logistics_manifest)
 	%LogisticsDetailBackButton.pressed.connect(func() -> void: logistics_detail_panel.call("power_off"))
 	%ForgeSpawnCopyButton.pressed.connect(_forge_spawn_copy)
-	%ForgeSpawnSampleButton.pressed.connect(_forge_spawn_sample)
+	%ForgeSpawnBlueprintContactButton.pressed.connect(_forge_spawn_blueprint_contact)
 	%ForgeClearEnemiesButton.pressed.connect(_forge_clear_enemies)
 	%ForgeSpawnGridPickupButton.pressed.connect(_forge_spawn_grid_pickup)
 	%ForgeMaxCrewButton.pressed.connect(_forge_max_crew)
@@ -160,6 +171,7 @@ func _ready() -> void:
 	_create_controller_menu_cursor()
 	_populate_forge()
 	_add_forge_ship_builder_button()
+	_add_forge_combat_testing_button()
 	forge_panel.call("power_off", true)
 	call_deferred("_refresh_forge_tab_position")
 	logistics_overview_panel.call("power_off", true)
@@ -209,14 +221,15 @@ func _on_jump_destination_selected(destination: GeneratedSector) -> void:
 	if destination == null or pending_jump_destination != null:
 		return
 	pending_jump_destination = destination
+	combat_testing_active = false
 	sector_jump_terminal.clear_routes()
 	jump_director.commit_destination(destination)
 	_play_transition_sound()
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
 	var tactical_ship_visual: CanvasItem
 	if is_instance_valid(current_view) and current_view.is_in_group("ship_view"):
-		tactical_ship_visual = current_view.get_node_or_null("%PlaceholderShip") as CanvasItem
-	lightspeed_transition.begin_jump(destination, ship, tactical_ship_visual)
+		tactical_ship_visual = current_view.call("get_jump_transition_visual") as CanvasItem
+	lightspeed_transition.begin_jump(destination, ship, tactical_ship_visual, current_view)
 
 
 func _on_lightspeed_midpoint() -> void:
@@ -225,22 +238,40 @@ func _on_lightspeed_midpoint() -> void:
 	var sector := get_tree().get_first_node_in_group("sector_simulation")
 	var population := get_tree().get_first_node_in_group("sector_population")
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
-	run_state.advance_to_sector(pending_jump_destination)
+	var combat := get_tree().get_first_node_in_group("combat_simulation")
+	if pending_combat_test_jump:
+		if is_instance_valid(combat):
+			combat.call("clear_enemies")
+		if is_instance_valid(population):
+			population.call("clear_sector_population")
+	else:
+		run_state.advance_to_sector(pending_jump_destination)
 	if is_instance_valid(sector):
 		sector.call("configure_generated_sector", pending_jump_destination)
-		_on_pursuit_stage_changed(run_state.pursuit_stage, run_state.get_pursuit_report())
-	if is_instance_valid(population):
+		if not pending_combat_test_jump:
+			_on_pursuit_stage_changed(run_state.pursuit_stage, run_state.get_pursuit_report())
+	if is_instance_valid(population) and not pending_combat_test_jump:
 		population.call("populate_generated_sector", pending_jump_destination)
 	if is_instance_valid(ship):
-		ship.call("reset_for_sector_entry", Vector2.ZERO, 0.0)
+		ship.call(
+			"reset_for_sector_entry",
+			pending_jump_destination.entry_position,
+			pending_jump_destination.entry_rotation
+		)
 	if is_instance_valid(current_view) and current_view.is_in_group("ship_view"):
 		current_view.call_deferred("_center_camera_on_ship")
 
 
 func _on_lightspeed_completed() -> void:
+	var should_open_combat_test := pending_combat_test_jump
+	if pending_combat_test_jump:
+		combat_testing_active = true
+		pending_combat_test_jump = false
 	pending_jump_destination = null
 	if is_instance_valid(sector_jump_terminal):
 		sector_jump_terminal.release_jump_pause()
+	if should_open_combat_test:
+		_open_combat_test_setup()
 
 
 func _create_pursuit_alert() -> void:
@@ -299,7 +330,7 @@ func _on_pursuit_stage_changed(stage: int, _report: Dictionary) -> void:
 
 
 func _on_player_weapon_fired(trace_noise: float) -> void:
-	if is_instance_valid(run_state):
+	if is_instance_valid(run_state) and not combat_testing_active:
 		run_state.add_pursuit_trace(trace_noise, &"WEAPONS_FIRE")
 
 
@@ -316,6 +347,11 @@ func _process(_delta: float) -> void:
 
 
 func _input(event: InputEvent) -> void:
+	if is_instance_valid(current_view):
+		var wheel := current_view.get_node_or_null("WeaponsHUD")
+		if wheel != null and wheel.call("handle_input", event):
+			get_viewport().set_input_as_handled()
+			return
 	if event is InputEventMouseMotion:
 		var mouse_motion := event as InputEventMouseMotion
 		var is_controller_warp := (
@@ -886,7 +922,7 @@ func _begin_controller_inventory_pickup(piece: Control) -> void:
 	if not is_instance_valid(parts_locker_refit_controller):
 		return
 	parts_locker_refit_controller.call(
-		"select_embedded_inventory_piece",
+		"begin_embedded_inventory_piece_pickup",
 		String(piece.get("room_type")),
 		piece.get_instance_id()
 	)
@@ -1114,7 +1150,10 @@ func _configure_parts_locker_panel() -> void:
 	# bottom of the game window.
 	var refit_context_viewport := Control.new()
 	refit_context_viewport.name = "RefitContextViewport"
-	refit_context_viewport.custom_minimum_size = Vector2(118.0, 184.0)
+	# A selected part is a working console, not a narrow tooltip.  Reserve enough
+	# width for its name, resource lamps, output gauge, and facing control to read
+	# as one deliberate instrument panel.
+	refit_context_viewport.custom_minimum_size = Vector2(176.0, 184.0)
 	refit_context_viewport.size_flags_horizontal = Control.SIZE_SHRINK_END
 	refit_context_viewport.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	refit_context_viewport.clip_contents = true
@@ -1271,19 +1310,23 @@ func _refresh_parts_locker() -> void:
 			descriptor["inventory_key"],
 			descriptor["recipe"],
 			int((descriptor.get("inventory_instance", {}) as Dictionary).get("instance_id", 0)),
-			descriptor.get("inventory_instance", {})
+			descriptor.get("inventory_instance", {}),
+			int(descriptor.get("crew_required", 0))
 		)
 		piece.set("drag_enabled", true)
 		piece.connect("selected", _on_parts_locker_piece_selected)
 		var power_capacity := int(descriptor["power_capacity"])
 		var power_draw := int(descriptor["power_draw"])
-		var power_hint := "GENERATES %d POWER" % power_capacity if power_capacity > 0 else (
-			"USES %d POWER" % power_draw if power_draw > 0 else "NO POWER LOAD"
+		var power_hint := "PROJECTS A REACTOR FIELD" if power_capacity > 0 else (
+			"REQUIRES %d REACTOR FIELD%s" % [power_draw, "" if power_draw == 1 else "S"] if power_draw > 0 else "NO REACTOR LINK REQUIRED"
 		)
-		piece.tooltip_text = "%s • %s\n%s\nDRAG • REARRANGE CARGO" % [
+		var crew_required := int(descriptor.get("crew_required", 0))
+		var crew_hint := "CREW COMPLEMENT • %d" % crew_required if crew_required > 0 else "NO CREW STATIONS REQUIRED"
+		piece.tooltip_text = "%s • %s\n%s\n%s\nDRAG • REARRANGE CARGO" % [
 			String(descriptor["display_name"]).to_upper(),
 			GRID_INVENTORY_CATALOG.footprint_label(descriptor["footprint"]),
 			power_hint,
+			crew_hint,
 		]
 		parts_locker_grid.add_child(piece)
 	logistics_overview_status.text = "%d LOOSE GRID%s • %d PATTERN%s" % [
@@ -1802,9 +1845,9 @@ func _populate_forge() -> void:
 	for behavior_name: String in ["ANCHOR VECTOR", "INTERCEPT COMMAND", "CIRCULAR ATTACK", "BREAK CONTACT"]:
 		forge_enemy_behavior.add_item(behavior_name)
 	forge_enemy_behavior.select(combat.default_behavior)
-	forge_sample_ship.clear()
-	for definition: Resource in combat.sample_ship_definitions:
-		forge_sample_ship.add_item(String(definition.get("display_name")))
+	forge_blueprint_contact.clear()
+	for definition: Resource in combat.ship_contact_definitions:
+		forge_blueprint_contact.add_item(String(definition.get("display_name")))
 
 
 func _add_forge_ship_builder_button() -> void:
@@ -1825,6 +1868,213 @@ func _add_forge_ship_builder_button() -> void:
 	controls.add_child(button)
 	if is_instance_valid(forge_structural_test_button):
 		controls.move_child(button, forge_structural_test_button.get_index() + 1)
+
+
+func _add_forge_combat_testing_button() -> void:
+	if forge_panel.has_node("Margin/Controls/ForgeCombatTestingButton"):
+		return
+	var controls := forge_panel.get_node_or_null("Margin/Controls") as VBoxContainer
+	if controls == null:
+		return
+	var button := Button.new()
+	button.name = "ForgeCombatTestingButton"
+	button.text = "> COMBAT TESTING SECTOR"
+	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.tooltip_text = "JUMP TO AN EMPTY LIVE-FIRE RANGE"
+	button.add_theme_font_size_override("font_size", 12)
+	button.add_theme_color_override("font_color", Color(1.0, 0.72, 0.2))
+	button.add_theme_stylebox_override("normal", forge_ship_editor_button.get_theme_stylebox("normal"))
+	button.add_theme_stylebox_override("hover", forge_ship_editor_button.get_theme_stylebox("hover"))
+	button.add_theme_stylebox_override("focus", forge_ship_editor_button.get_theme_stylebox("hover"))
+	button.pressed.connect(_enter_combat_testing)
+	controls.add_child(button)
+	var builder_button := controls.get_node_or_null("ForgeShipBuilderButton") as Button
+	if is_instance_valid(builder_button):
+		controls.move_child(button, builder_button.get_index() + 1)
+
+
+func _enter_combat_testing() -> void:
+	if pending_jump_destination != null:
+		return
+	if forge_toggle.button_pressed:
+		forge_toggle.set_pressed_no_signal(false)
+		_on_forge_toggled(false)
+	if combat_testing_active:
+		_open_combat_test_setup()
+		return
+	var destination := GeneratedSector.new()
+	destination.sector_id = &"COMBAT_TESTING"
+	destination.display_name = "FORGE COMBAT RANGE"
+	destination.archetype_id = &"COMBAT_TEST"
+	destination.environment_type = &"OPEN_SPACE"
+	destination.sector_tags = PackedStringArray(["COMBAT_TEST", "EMPTY_SECTOR"])
+	destination.faction_signals = PackedStringArray()
+	destination.modifier_ids = PackedStringArray()
+	destination.safe_radius = 2100.0
+	destination.hazard_enabled = true
+	destination.signal_color = Color(1.0, 0.68, 0.18)
+	pending_combat_test_jump = true
+	pending_jump_destination = destination
+	if is_instance_valid(sector_jump_terminal):
+		sector_jump_terminal.clear_routes()
+	_play_transition_sound()
+	var ship := get_tree().get_first_node_in_group("ship_simulation")
+	var tactical_ship_visual: CanvasItem
+	if is_instance_valid(current_view) and current_view.is_in_group("ship_view"):
+		tactical_ship_visual = current_view.call("get_jump_transition_visual") as CanvasItem
+	lightspeed_transition.begin_jump(destination, ship, tactical_ship_visual, current_view)
+
+
+func _open_combat_test_setup() -> void:
+	if combat_test_panel == null:
+		combat_test_panel_layer = CanvasLayer.new()
+		combat_test_panel_layer.name = "CombatTestSetupLayer"
+		combat_test_panel_layer.layer = 240
+		add_child(combat_test_panel_layer)
+		combat_test_panel = COMBAT_TEST_SETUP_PANEL.new() as CombatTestSetupPanel
+		combat_test_panel.name = "CombatTestSetupPanel"
+		combat_test_panel.scenario_requested.connect(_deploy_combat_test_scenario)
+		combat_test_panel.asteroid_field_requested.connect(_deploy_combat_test_asteroid_field)
+		combat_test_panel.clear_requested.connect(_clear_combat_test_scenario)
+		combat_test_panel_layer.add_child(combat_test_panel)
+	combat_test_panel.open_panel(_combat_test_blueprints())
+
+
+func _combat_test_blueprints() -> Array[Dictionary]:
+	var blueprints: Array[Dictionary] = []
+	var directory := DirAccess.open(COMBAT_TEST_BLUEPRINT_DIRECTORY)
+	if directory != null:
+		var files: PackedStringArray = []
+		directory.list_dir_begin()
+		var file_name := directory.get_next()
+		while not file_name.is_empty():
+			if not directory.current_is_dir() and file_name.get_extension().to_lower() == "tres":
+				files.append(file_name)
+			file_name = directory.get_next()
+		directory.list_dir_end()
+		files.sort()
+		for saved_file: String in files:
+			var path := "%s/%s" % [COMBAT_TEST_BLUEPRINT_DIRECTORY, saved_file]
+			var layout := ResourceLoader.load(path) as Resource
+			if layout == null:
+				continue
+			var display_name := String(layout.get("design_name")).strip_edges()
+			if display_name.is_empty():
+				display_name = saved_file.get_basename().capitalize()
+			blueprints.append({
+				"name": display_name,
+				"path": path,
+				"kind": String(layout.get("vessel_kind")).to_upper() if not String(layout.get("vessel_kind")).is_empty() else "SHIP",
+			})
+	if blueprints.is_empty() and ResourceLoader.exists(COMBAT_TEST_FALLBACK_BLUEPRINT_PATH):
+		blueprints.append({
+			"name": "BAREBONES STARTER",
+			"path": COMBAT_TEST_FALLBACK_BLUEPRINT_PATH,
+			"kind": "SHIP",
+		})
+	return blueprints
+
+
+func _clear_combat_test_scenario() -> void:
+	var combat := get_tree().get_first_node_in_group("combat_simulation")
+	if is_instance_valid(combat):
+		combat.call("clear_enemies")
+	var population := get_tree().get_first_node_in_group("sector_population")
+	if is_instance_valid(population):
+		population.call("clear_combat_test_target_field")
+		population.call("clear_combat_test_environment")
+
+
+func _deploy_combat_test_asteroid_field(target_count: int) -> void:
+	var combat := get_tree().get_first_node_in_group("combat_simulation")
+	var population := get_tree().get_first_node_in_group("sector_population")
+	if not is_instance_valid(combat) or not is_instance_valid(population):
+		return
+	combat.call("clear_enemies")
+	population.call("clear_combat_test_environment")
+	var deployed_count := int(population.call("spawn_combat_test_target_field", target_count))
+	forge_status.text = "AUTOMATIC-FIRE RANGE • %d ASTEROID TARGETS DEPLOYED" % deployed_count
+
+
+func _deploy_combat_test_scenario(configuration: Dictionary) -> void:
+	var combat := get_tree().get_first_node_in_group("combat_simulation")
+	if not is_instance_valid(combat):
+		return
+	combat.call("clear_enemies")
+	var population := get_tree().get_first_node_in_group("sector_population")
+	if is_instance_valid(population):
+		population.call("clear_combat_test_target_field")
+		population.call("clear_combat_test_environment")
+		population.call("spawn_combat_test_environment", StringName(configuration.get("environment", &"CLEAR_SPACE")))
+	var formation_centers: Array[Vector2] = [
+		Vector2(-760.0, -430.0),
+		Vector2(760.0, -430.0),
+		Vector2(0.0, 820.0),
+	]
+	var player_ship := get_tree().get_first_node_in_group("ship_simulation")
+	var scenario_origin := Vector2(player_ship.get("ship_position")) if is_instance_valid(player_ship) else Vector2.ZERO
+	var total_spawned := 0
+	var station_count := 0
+	var groups: Array = configuration.get("factions", [])
+	for group_index: int in range(groups.size()):
+		var group: Dictionary = groups[group_index]
+		var center_offset := formation_centers[group_index % formation_centers.size()]
+		var center := scenario_origin + center_offset
+		var tangent := center_offset.normalized().orthogonal()
+		var combat_team := int(group.get("combat_team", group_index + 1))
+		var station_path := String(group.get("station_blueprint_path", ""))
+		if ResourceLoader.exists(station_path):
+			var station_layout := load(station_path) as Resource
+			if station_layout != null:
+				combat.call(
+					"spawn_combat_test_ship", station_layout,
+					StringName(group.get("faction_id", &"UNAFFILIATED")), combat_team,
+					center, Vector2.UP.angle_to((-center_offset).normalized()),
+					"%s • %s" % [group.get("faction_name", "TEST GROUP"), group.get("station_name", "STATION")],
+					Color(group.get("color", Color.WHITE)), bool(group.get("station_hostile_to_player", false)),
+					bool(group.get("station_hostile_to_npcs", true))
+				)
+				station_count += 1
+		var roster: Array = group.get("ships", [])
+		var total_group_ships := 0
+		for roster_entry: Dictionary in roster:
+			total_group_ships += clampi(int(roster_entry.get("count", 0)), 0, 12)
+		var deployed_in_group := 0
+		for roster_entry: Dictionary in roster:
+			var ship_count := clampi(int(roster_entry.get("count", 0)), 0, 12)
+			var blueprint_path := String(roster_entry.get("blueprint_path", ""))
+			if ship_count <= 0 or not ResourceLoader.exists(blueprint_path):
+				continue
+			var layout := load(blueprint_path) as Resource
+			if layout == null:
+				continue
+			for ship_index: int in range(ship_count):
+				var offset := (float(deployed_in_group) - float(total_group_ships - 1) * 0.5) * 150.0
+				var spawn_position := center + (-center_offset).normalized() * 230.0 + tangent * offset
+				var facing := Vector2.UP.angle_to((scenario_origin - spawn_position).normalized())
+				deployed_in_group += 1
+				combat.call(
+					"spawn_combat_test_ship", layout,
+					StringName(group.get("faction_id", &"UNAFFILIATED")), combat_team,
+					spawn_position, facing,
+					"%s • %s %02d" % [group.get("faction_name", "TEST GROUP"), roster_entry.get("ship_name", "SHIP"), ship_index + 1],
+					Color(group.get("color", Color.WHITE)), bool(group.get("fleet_hostile_to_player", false)), true
+				)
+				total_spawned += 1
+	var neutral_station: Dictionary = configuration.get("neutral_station", {})
+	var neutral_path := String(neutral_station.get("blueprint_path", ""))
+	if ResourceLoader.exists(neutral_path):
+		var neutral_layout := load(neutral_path) as Resource
+		if neutral_layout != null:
+			combat.call(
+				"spawn_combat_test_neutral_station", neutral_layout,
+				scenario_origin + Vector2(0.0, -760.0), 0.0,
+				String(neutral_station.get("station_name", "NEUTRAL STATION")),
+				bool(neutral_station.get("hostile_to_player", false)),
+				bool(neutral_station.get("hostile_to_npcs", false))
+			)
+			station_count += 1
+	forge_status.text = "COMBAT RANGE • %d SHIPS • %d STATIONS • %s" % [total_spawned, station_count, String(configuration.get("environment", &"CLEAR_SPACE")).replace("_", " ")]
 
 
 func _open_ship_builder() -> void:
@@ -1861,8 +2111,6 @@ func _start_escape_run() -> void:
 
 
 func _on_escape_prologue_confirmed() -> void:
-	if is_instance_valid(run_state):
-		run_state.begin_new_run()
 	_open_starter_ship_draft()
 
 
@@ -1883,14 +2131,14 @@ func _open_starter_ship_draft() -> void:
 		starting_ship_terminal.cancelled.connect(_on_starter_ship_draft_cancelled)
 		starting_ship_terminal_layer.add_child(starting_ship_terminal)
 	var randomizer := STARTING_SHIP_RANDOMIZER_SCRIPT.new() as StartingShipRandomizer
-	var candidates: Array[Dictionary] = randomizer.generate_candidates(3)
+	var draft_rounds: Array[Dictionary] = randomizer.generate_draft_rounds()
 	if forge_toggle.button_pressed:
 		forge_toggle.set_pressed_no_signal(false)
 		_on_forge_toggled(false)
 		# The starter terminal pauses the tree as soon as it opens. Finish the
 		# Forge shutdown immediately so its CRT collapse cannot freeze onscreen.
 		forge_panel.call("power_off", true)
-	starting_ship_terminal.open_terminal(candidates)
+	starting_ship_terminal.open_terminal(draft_rounds)
 
 
 func _on_starter_ship_draft_cancelled() -> void:
@@ -1911,36 +2159,90 @@ func _on_starter_ship_engaged(candidate: Dictionary) -> void:
 	if not run_start_pending:
 		_show_starter_selection_message(ship_name, role)
 		return
-	run_start_pending = false
 	_apply_starter_candidate(candidate)
-	_begin_opening_sector_jump()
+	_open_escape_assembly()
 
 
 func _apply_starter_candidate(candidate: Dictionary) -> void:
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
-	var candidate_layout := candidate.get("layout") as Resource
-	if not is_instance_valid(ship) or candidate_layout == null:
-		push_error("Starter candidate could not be applied: missing ship or layout.")
+	if not is_instance_valid(ship):
+		push_error("Starter draft could not be applied: missing ship simulation.")
 		return
-	var fresh_layout := candidate_layout.duplicate(true) as Resource
+	var fresh_layout := ESCAPE_KEEL_BLUEPRINT.duplicate(true) as Resource
+	var bridge_template: Resource
+	for template: Resource in fresh_layout.get("room_types"):
+		if String(template.get("type_name")) in ["COMMAND", "BRIDGE"]:
+			bridge_template = template
+			break
+	if bridge_template == null:
+		push_error("Starter draft could not be applied: bridge template missing.")
+		return
+	var bridge := bridge_template.duplicate(true) as Resource
+	bridge.set("room_id", &"escape_keel_bridge")
+	bridge.set("display_name", "ESCAPE BRIDGE")
+	bridge.set("grid_rects", [Rect2i(Vector2i(4, 4), Vector2i(2, 2))])
+	bridge.set("build_footprint_lattice", Vector2i(2, 2))
+	bridge.set("installed_piece_count", 1)
+	fresh_layout.set("design_name", "IMPOUND ESCAPE HULL")
+	fresh_layout.set("lattice_version", 2)
+	fresh_layout.set("build_origin", Vector2i.ZERO)
+	fresh_layout.set("columns", 10)
+	fresh_layout.set("rows", 12)
+	fresh_layout.set("unlimited_build_space", true)
+	var keel_rooms: Array[Resource] = [bridge]
+	fresh_layout.set("rooms", keel_rooms)
 	ship.set("ship_layout", fresh_layout)
-	if fresh_layout.has_method("ensure_quarter_lattice"):
-		fresh_layout.call("ensure_quarter_lattice")
 	if fresh_layout.has_method("capture_core_frame"):
 		fresh_layout.call("capture_core_frame", true)
 	if ship.has_method("clear_grid_piece_inventory"):
 		ship.call("clear_grid_piece_inventory")
-	else:
-		var inventory_value: Variant = ship.get("grid_piece_inventory")
-		if inventory_value is Dictionary:
-			var inventory: Dictionary = inventory_value
-			inventory.clear()
+	var starting_inventory: Array[String] = ["CREW_QUARTERS", "POWER", "PROPULSION", "WEAPON:light_ballistic_mount", "WEAPON:light_ballistic_mount"]
+	for key_value: Variant in candidate.get("draft_inventory", []):
+		var inventory_key := String(key_value)
+		if not inventory_key.is_empty():
+			starting_inventory.append(inventory_key)
+	for inventory_key: String in starting_inventory:
+		ship.call("add_grid_piece", inventory_key, 1)
 	ship.call("refresh_rooms_from_layout")
+	refresh_active_layout_views()
+	parts_locker_signature = ""
+
+
+func _open_escape_assembly() -> void:
+	var ship := get_tree().get_first_node_in_group("ship_simulation")
+	if not is_instance_valid(ship):
+		return
+	if ship_builder_screen == null:
+		ship_builder_screen = SHIP_BUILDER_SCREEN.instantiate() as ShipBuilderScreen
+		add_child(ship_builder_screen)
+		ship_builder_screen.grid_editor_requested.connect(_open_deck_grid_editor_from_shipyard)
+	if not ship_builder_screen.closed.is_connected(_on_escape_assembly_closed):
+		ship_builder_screen.closed.connect(_on_escape_assembly_closed)
+	escape_assembly_pending = true
+	ship_builder_screen.open_for_layout(
+		ship.ship_layout,
+		"ESCAPE",
+		ship.call("get_grid_piece_inventory"),
+		ship
+	)
+
+
+func _on_escape_assembly_closed() -> void:
+	if not escape_assembly_pending:
+		return
+	escape_assembly_pending = false
+	run_start_pending = false
+	var ship := get_tree().get_first_node_in_group("ship_simulation")
+	if is_instance_valid(ship):
+		ship.call("refresh_rooms_from_layout")
 	var crew := get_tree().get_first_node_in_group("crew_simulation")
 	if is_instance_valid(crew) and crew.has_method("reset_crew_for_new_run"):
 		crew.call("reset_crew_for_new_run", 8)
+	if is_instance_valid(run_state):
+		run_state.begin_new_run()
 	refresh_active_layout_views()
 	parts_locker_signature = ""
+	_begin_opening_sector_jump()
 
 
 func _begin_opening_sector_jump() -> void:
@@ -1953,8 +2255,8 @@ func _begin_opening_sector_jump() -> void:
 	var ship := get_tree().get_first_node_in_group("ship_simulation")
 	var tactical_ship_visual: CanvasItem
 	if is_instance_valid(current_view) and current_view.is_in_group("ship_view"):
-		tactical_ship_visual = current_view.get_node_or_null("%PlaceholderShip") as CanvasItem
-	lightspeed_transition.begin_jump(destination, ship, tactical_ship_visual)
+		tactical_ship_visual = current_view.call("get_jump_transition_visual") as CanvasItem
+	lightspeed_transition.begin_jump(destination, ship, tactical_ship_visual, current_view)
 	_show_starter_selection_message(
 		String(selected_starter_candidate.get("name", "ESCAPE HULL")),
 		"CLAMPS RELEASED • LIGHT-SPEED VECTOR COMMITTED"
@@ -2089,10 +2391,10 @@ func _forge_spawn_copy() -> void:
 		combat.spawn_enemy()
 
 
-func _forge_spawn_sample() -> void:
+func _forge_spawn_blueprint_contact() -> void:
 	var combat := get_tree().get_first_node_in_group("combat_simulation")
-	if is_instance_valid(combat) and forge_sample_ship.item_count > 0:
-		combat.spawn_sample_enemy(forge_sample_ship.selected)
+	if is_instance_valid(combat) and forge_blueprint_contact.item_count > 0:
+		combat.spawn_blueprint_contact(forge_blueprint_contact.selected)
 
 
 func _forge_clear_enemies() -> void:
@@ -2207,6 +2509,8 @@ func _add_view(view_name: String) -> void:
 
 	current_view = VIEW_SCENES[view_name].instantiate()
 	content_host.add_child(current_view)
+	if view_name == "Ship":
+		current_view.add_child(preload("res://scripts/weapons_hud.gd").new())
 	if view_name == "Ship" and current_view.has_signal("station_drydock_requested"):
 		current_view.connect("station_drydock_requested", _open_station_ship_builder)
 	current_view.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)

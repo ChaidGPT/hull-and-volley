@@ -12,6 +12,8 @@ var star_offset := Vector2.ZERO
 var trail_vector := Vector2.ZERO
 var previous_camera_position := Vector2.ZERO
 var camera_position_initialized := false
+var jump_offset_y := 0.0
+var jump_streak_strength := 0.0
 
 
 func _ready() -> void:
@@ -42,6 +44,18 @@ func update_camera_position(camera_position: Vector2) -> void:
 	queue_redraw()
 
 
+func set_jump_motion(offset_y: float, streak_strength: float) -> void:
+	jump_offset_y = offset_y
+	jump_streak_strength = clampf(streak_strength, 0.0, 1.0)
+	queue_redraw()
+
+
+func clear_jump_motion() -> void:
+	jump_offset_y = 0.0
+	jump_streak_strength = 0.0
+	queue_redraw()
+
+
 func _draw() -> void:
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
@@ -50,19 +64,20 @@ func _draw() -> void:
 		var base_position := normalized_stars[index] * size
 		var star_position := Vector2(
 			fposmod(base_position.x + star_offset.x, size.x),
-			fposmod(base_position.y + star_offset.y, size.y)
+			fposmod(base_position.y + star_offset.y + jump_offset_y, size.y)
 		)
 		var brightness := star_brightness[index]
-		if trail_vector.length_squared() > 0.04:
+		var jump_trail := Vector2(0.0, jump_streak_strength * size.y * 0.15)
+		var effective_trail := trail_vector + jump_trail
+		if effective_trail.length_squared() > 0.04:
 			draw_line(
-				star_position - trail_vector,
+				star_position - effective_trail,
 				star_position,
-				Color(0.35, 0.58, 0.68, brightness * 0.22),
-				1.0
+				Color(0.35, 0.66, 0.78, brightness * (0.22 + jump_streak_strength * 0.56)),
+				1.0 + jump_streak_strength
 			)
 		draw_circle(
 			star_position,
 			star_sizes[index],
 			Color(0.56, 0.72, 0.8, brightness)
 		)
-

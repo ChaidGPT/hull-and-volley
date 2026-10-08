@@ -403,7 +403,10 @@ func _integrate_forces(state: PhysicsDirectBodyState2D) -> void:
 			continue
 		if not other_body.is_in_group("physics_ships") and not other_body.is_in_group("sector_obstacles"):
 			continue
-		var point := state.get_contact_local_position(contact_index)
+		# DirectBodyState reports the contact in this body's local coordinates.
+		# Combat damage routing expects a world point; passing the local value made
+		# impacts far from the origin select an unrelated edge module.
+		var point := to_global(state.get_contact_local_position(contact_index))
 		var other_velocity := state.get_contact_collider_velocity_at_position(contact_index)
 		call_deferred(
 			"_emit_ship_collision",
